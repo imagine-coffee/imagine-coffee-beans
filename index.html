@@ -1185,7 +1185,9 @@
 // （GASのサンドボックスiframeでは location.search に ?key= が引き継がれないため、注入方式を使う）
 // ローカルファイルで開いた場合は注入されないので、URLの ?key= から読む。
 const INJECTED_ADMIN_KEY = '<?!= adminKey ?>';
-const ADMIN_ACCESS_KEY = (INJECTED_ADMIN_KEY.indexOf('\x3c?') === -1 && INJECTED_ADMIN_KEY) ? INJECTED_ADMIN_KEY : (new URLSearchParams(location.search).get('key') || '');
+const ADMIN_ACCESS_KEY = INJECTED_ADMIN_KEY.indexOf('\x3c?') === -1
+  ? INJECTED_ADMIN_KEY
+  : (new URLSearchParams(location.search).get('key') || '');
 
 const STORAGE_KEYS = {
   GAS_URL: 'imagine_gas_url',
@@ -2540,9 +2542,7 @@ function openShopDetail(shopId) {
   $('copy-order-url-btn').addEventListener('click', async () => {
     let url;
     try {
-      const res = await gasRequest('getOrderUrl', { id: shop.id });
-      url = res && res.url;
-      if (!url) throw new Error('URLを取得できませんでした');
+      url = location.origin + location.pathname.replace(/[^/]*$/, '') + 'order.html?shop=' + encodeURIComponent(shop.id);
     } catch (e) {
       alert('注文URLを作成できませんでした: ' + e.message);
       return;
@@ -3513,9 +3513,7 @@ $('send-custom-mail-btn').addEventListener('click', openCustomEmailModal);
 $('copy-signup-url-btn').addEventListener('click', async () => {
   let url;
   try {
-    const res = await gasRequest('getSignupUrl', {});
-    url = res && res.url;
-    if (!url) throw new Error('URLを取得できませんでした');
+    url = location.origin + location.pathname.replace(/[^/]*$/, '') + 'signup.html';
   } catch (e) {
     alert('新規登録URLを作成できませんでした: ' + e.message);
     return;
