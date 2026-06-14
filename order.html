@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>IMAGINE.COFFEE 注文ページ</title>
+
+<!-- PWA / ホーム画面追加用 -->
+<link rel="manifest" href="manifest-order.json" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="IMAGINE 注文" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<meta name="theme-color" content="#FFFCF5" />
+
+<style>
+  :root {
+    /* GASの警告バー(「このアプリケーションは Google Apps Script の
+       ユーザーによって作成されたものです」)の高さ。
+       PC実測値は48px。スマホ幅では文字が折り返り高さが増える
+       ことがあるため、メディアクエリで余裕を持たせています。
+       実機で隙間/見切れが出る場合はここを調整してください。 */
+    --banner-h: 48px;
+    --banner-h-mobile: 96px;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #FFFCF5;
+  }
+  .frame-wrap {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+  }
+  .frame-wrap iframe {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    border: 0;
+    top: calc(-1 * var(--banner-h));
+    height: calc(100% + var(--banner-h));
+  }
+  @media (max-width: 600px) {
+    .frame-wrap iframe {
+      top: calc(-1 * var(--banner-h-mobile));
+      height: calc(100% + var(--banner-h-mobile));
+    }
+  }
+  .loading {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    color: #9A9A96;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+<div class="loading" id="loading">読み込み中...</div>
+<div class="frame-wrap">
+  <iframe id="appFrame" title="IMAGINE.COFFEE 注文ページ"></iframe>
+</div>
+<script>
+  // ここにデプロイ済みのGAS Web App URL(/exec)を設定
+  var GAS_URL = "https://script.google.com/macros/s/AKfycbzFh8EZnEpMSN1-16sIs6TAkyVMalY9mqhjF020z7rqsDnTduODxotmYcZh85uTK6O2/exec";
+
+  var params = new URLSearchParams(location.search);
+  var shopId = params.get('shop') || params.get('shopId') || '';
+
+  var frame = document.getElementById('appFrame');
+  frame.src = GAS_URL + '?page=order&shopId=' + encodeURIComponent(shopId);
+  frame.addEventListener('load', function () {
+    var el = document.getElementById('loading');
+    if (el) el.style.display = 'none';
+  });
+</script>
+</body>
+</html>
