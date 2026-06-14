@@ -952,109 +952,31 @@
   a { color: var(--accent-cyan); text-decoration: none; font-weight: 500; }
   a:active { opacity: 0.7; }
   /* スマホ（タッチ＋狭い画面）のみ大きい文字に。iPadはPCと同じ標準サイズ */
-  @media (pointer: coarse) and (max-width: 700px), (hover: none) and (max-width: 700px) {
-    body { font-size: 22px; line-height: 1.65; }
-    .app { padding: 12px 8px 100px; }
-    .brand { font-size: 13px; }
-    .title { font-size: 34px; }
-    .sync-status { font-size: 16px; padding: 10px 14px; }
-    .tabs { gap: 12px; margin-bottom: 22px; }
-    .tab {
-      min-height: 58px;
-      font-size: 20px;
-      padding: 15px 22px;
+  /* iPad・タブレット：横幅を活かして2列＋ほどよく拡大（モバイルは基準のまま） */
+  @media (min-width: 768px) {
+    body { font-size: 17px; }
+    .app { max-width: 860px; margin: 0 auto; padding: 24px 20px 100px; }
+    .title { font-size: 28px; }
+    .tab { font-size: 15px; }
+    .btn-primary { font-size: 16px; }
+    .card-title { font-size: 19px; }
+    .card-meta { font-size: 14px; }
+    .order-line-name, .order-line-amount { font-size: 18px; }
+    .field-label { font-size: 14px; }
+    input, select, textarea { font-size: 16px; }
+    #orders-list, #shops-list, #items-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
     }
-    .btn-primary {
-      min-height: 74px;
-      font-size: 24px;
-      padding: 20px;
-      margin-bottom: 22px;
-    }
-    .order-actions {
-      grid-template-columns: 1fr;
-      gap: 14px;
-      padding: 12px;
-    }
-    .order-actions .btn-primary {
-      margin-bottom: 0;
-    }
-    .card {
-      border-width: 2.5px;
-      padding: 18px 14px;
-      border-radius: 20px;
-      margin-bottom: 12px;
-    }
-    .card-title { font-size: 38px; line-height: 1.25; }
-    .card-meta { font-size: 26px; line-height: 1.5; }
-    .meta-label { font-size: 17px; }
-    .card-memo, .card-memo-label { font-size: 20px; }
-    .order-line-name, .order-line-amount { font-size: 25px; }
-    .badge { font-size: 18px; padding: 10px 16px; }
-    .btn-small {
-      min-height: 58px;
-      font-size: 22px;
-      padding: 12px 16px;
-    }
-    input, select, textarea {
-      min-height: 74px !important;
-      font-size: 24px !important;
-      padding: 18px 18px !important;
-      border-width: 2px !important;
-      border-radius: 16px !important;
-    }
-    textarea { min-height: 150px !important; }
-    .field { margin-bottom: 26px; }
-    .field-label {
-      font-size: 28px;
-      line-height: 1.25;
-      margin-bottom: 14px;
-    }
-    .modal {
-      width: calc(100% - 12px);
-      border-radius: 20px 20px 0 0;
-      padding: 24px 18px;
-    }
-    .modal-title { font-size: 28px; }
-    .modal-close {
-      width: 48px;
-      height: 48px;
-      font-size: 24px;
-    }
-    .order-item {
-      border-width: 2px;
-      border-radius: 18px;
-      padding: 18px;
-    }
-    .order-item-num { font-size: 18px; }
-    .input-mode-btn,
-    .item-type-btn,
-    .grind-btn {
-      min-height: 62px;
-      font-size: 20px;
-      padding: 14px;
-    }
-    .planning-filter-title,
-    .planning-item-shop,
-    .planning-result-title,
-    .planning-result-section-title,
-    .planning-result-name {
-      font-size: 22px;
-    }
-    .planning-result-section-count { font-size: 16px; }
-    .planning-item-meta,
-    .planning-item-items,
-    .planning-result-line,
-    .planning-result-total {
-      font-size: 18px;
-    }
+    #orders-list > .card, #shops-list > .card, #items-list > .card { margin-bottom: 0; }
+    #orders-list > .empty, #shops-list > .empty, #items-list > .empty { grid-column: 1 / -1; }
   }
-  /* 広い画面（PC・iPad横）は中央寄せレイアウト */
-  @media (min-width: 901px) {
-    .app {
-      max-width: 720px;
-      padding-left: 16px;
-      padding-right: 16px;
-    }
+
+  /* PC：もう少し広く中央寄せ */
+  @media (min-width: 1100px) {
+    .app { max-width: 1000px; }
   }
 </style>
 </head>
