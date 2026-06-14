@@ -1135,6 +1135,7 @@
   <div id="tab-shops" class="tab-panel" style="display:none;">
     <button class="btn-primary yellow" id="add-shop-btn">＋ 新しい顧客を登録</button>
     <button class="btn-primary green" id="send-weekly-mails-btn">今週の案内メールを送信</button>
+    <button class="btn-primary cyan" id="weekly-schedule-btn">週次メールの自動送信を設定</button>
     <button class="btn-primary" id="send-custom-mail-btn">お知らせメールを送信</button>
     <button class="btn-primary cyan" id="copy-signup-url-btn">新規登録URLをコピー</button>
     <div id="shops-list"></div>
@@ -3504,11 +3505,59 @@ function restoreTab() {
   if (tabPanel) tabPanel.style.display = 'block';
 }
 
+async function openWeeklyScheduleModal() {
+  let sched = { enabled: false, weekday: 1, hour: 9 };
+  try {
+    const r = await gasRequest('getWeeklyEmailSchedule', {});
+    if (r) sched = { enabled: !!r.enabled, weekday: r.weekday, hour: r.hour };
+  } catch (e) {}
+  const days = ['日曜','月曜','火曜','水曜','木曜','金曜','土曜'];
+  const dayOpts = days.map((d,i)=>`<option value="${i}" ${sched.weekday===i?'selected':''}>${d}</option>`).join('');
+  let hourOpts = '';
+  for (let h=0; h<24; h++) hourOpts += `<option value="${h}" ${sched.hour===h?'selected':''}>${('0'+h).slice(-2)}:00</option>`;
+  const body = `
+    <p style="font-size:13px; color:var(--text-secondary); margin:0 0 14px;">毎週、指定した曜日・時刻に、対象のお客さん全員へ注文ページの案内メールを自動送信します。件名・本文は「今週の案内メール」の標準フォーマットを使います。</p>
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600;">
+        <input type="checkbox" id="wsch-enabled" ${sched.enabled?'checked':''} style="width:auto; box-shadow:none;" />
+        自動送信をオンにする
+      </label>
+    </div>
+    <div class="field">
+      <label class="field-label">曜日</label>
+      <select id="wsch-weekday">${dayOpts}</select>
+    </div>
+    <div class="field">
+      <label class="field-label">時刻</label>
+      <select id="wsch-hour">${hourOpts}</select>
+    </div>
+    <button class="btn-primary green" id="wsch-save" style="margin-bottom:8px;">保存する</button>
+  `;
+  openModal('週次メール 自動送信設定', body);
+  $('wsch-save').addEventListener('click', saveWeeklyScheduleFromModal);
+}
+
+async function saveWeeklyScheduleFromModal() {
+  const payload = {
+    enabled: $('wsch-enabled').checked,
+    weekday: parseInt($('wsch-weekday').value, 10),
+    hour: parseInt($('wsch-hour').value, 10)
+  };
+  try {
+    await gasRequest('setWeeklyEmailSchedule', payload);
+    closeModal();
+    toast(payload.enabled ? '毎週の自動送信を設定しました' : '自動送信をオフにしました');
+  } catch (e) {
+    alert('保存できませんでした: ' + (e.message || e));
+  }
+}
+
 $('add-order-btn').addEventListener('click', () => openOrderModal());
 $('add-reception-btn').addEventListener('click', openReceptionModal);
 $('add-shop-btn').addEventListener('click', () => openShopModal());
 $('add-item-btn').addEventListener('click', () => openItemModal());
 $('send-weekly-mails-btn').addEventListener('click', sendWeeklyOrderEmailsFromButton);
+$('weekly-schedule-btn').addEventListener('click', openWeeklyScheduleModal);
 $('send-custom-mail-btn').addEventListener('click', openCustomEmailModal);
 $('copy-signup-url-btn').addEventListener('click', async () => {
   let url;
