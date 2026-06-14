@@ -1185,9 +1185,7 @@
 // （GASのサンドボックスiframeでは location.search に ?key= が引き継がれないため、注入方式を使う）
 // ローカルファイルで開いた場合は注入されないので、URLの ?key= から読む。
 const INJECTED_ADMIN_KEY = '<?!= adminKey ?>';
-const ADMIN_ACCESS_KEY = INJECTED_ADMIN_KEY.indexOf('\x3c?') === -1
-  ? INJECTED_ADMIN_KEY
-  : (new URLSearchParams(location.search).get('key') || '');
+const ADMIN_ACCESS_KEY = (INJECTED_ADMIN_KEY.indexOf('\x3c?') === -1 && INJECTED_ADMIN_KEY) ? INJECTED_ADMIN_KEY : (new URLSearchParams(location.search).get('key') || '');
 
 const STORAGE_KEYS = {
   GAS_URL: 'imagine_gas_url',
