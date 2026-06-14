@@ -1202,12 +1202,15 @@ const STORAGE_KEYS = {
   PENDING_OPS: 'imagine_pending_ops'
 };
 
+// どの端末でも自動接続できるようGAS URLを既定値として埋め込み（端末ごとの手入力を不要にする）
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzFh8EZnEpMSN1-16sIs6TAkyVMalY9mqhjF020z7rqsDnTduODxotmYcZh85uTK6O2/exec';
+
 let state = {
   orders: [],
   shops: [],
   items: [],  // 商品マスタ（豆・バッグなど）
   settings: [],
-  gasUrl: localStorage.getItem(STORAGE_KEYS.GAS_URL) || '',
+  gasUrl: (function(){ var u = (localStorage.getItem(STORAGE_KEYS.GAS_URL) || '').trim(); return /\/exec$/.test(u) ? u : DEFAULT_GAS_URL; })(),
   online: false,
   currentTab: localStorage.getItem(STORAGE_KEYS.CURRENT_TAB) || 'orders'
 };
