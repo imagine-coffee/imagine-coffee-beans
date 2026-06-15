@@ -3431,17 +3431,31 @@ function restoreTab() {
 }
 
 async function openWeeklyScheduleModal() {
-  let sched = { enabled: false, weekday: 1, hour: 9, subject: '', body: '' };
+  let sched = { enabled: false, weekday: 1, hour: 9, subject: '', body: '', targetShopIds: [], sendToAll: true };
   try {
     const r = await gasRequest('getWeeklyEmailSchedule', {});
-    if (r) sched = { enabled: !!r.enabled, weekday: r.weekday, hour: r.hour, subject: r.subject || '', body: r.body || '' };
+    if (r) sched = { enabled: !!r.enabled, weekday: r.weekday, hour: r.hour, subject: r.subject || '', body: r.body || '', targetShopIds: (r.targetShopIds || []).map(String), sendToAll: r.sendToAll !== false };
   } catch (e) {}
+  const mailable = state.shops.filter(function(s){ return s.email && s.email.indexOf('@') !== -1 && String(s.status || 'active') === 'active'; });
+  const checkedSet = new Set(sched.targetShopIds);
+  const shopRows = mailable.map(function(s){
+    const isChecked = sched.sendToAll || checkedSet.has(String(s.id));
+    return `
+      <label style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border-soft); cursor:pointer;">
+        <input type="checkbox" class="wsch-check" data-id="${escapeHtml(s.id)}" ${isChecked ? 'checked' : ''}
+          style="width:20px; height:20px; flex-shrink:0; box-shadow:none; accent-color:var(--accent-cyan);" />
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:700; font-size:15px;">${escapeHtml(s.name)}</div>
+          <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">${escapeHtml(s.email)}</div>
+        </div>
+      </label>`;
+  }).join('');
   const days = ['日曜','月曜','火曜','水曜','木曜','金曜','土曜'];
   const dayOpts = days.map((d,i)=>`<option value="${i}" ${sched.weekday===i?'selected':''}>${d}</option>`).join('');
   let hourOpts = '';
   for (let h=0; h<24; h++) hourOpts += `<option value="${h}" ${sched.hour===h?'selected':''}>${('0'+h).slice(-2)}:00</option>`;
   const body = `
-    <p style="font-size:13px; color:var(--text-secondary); margin:0 0 14px;">毎週、指定した曜日・時刻に、対象のお客さん全員へ注文ページの案内メールを自動送信します。件名・本文は「今週の案内メール」の標準フォーマットを使います。</p>
+    <p style="font-size:13px; color:var(--text-secondary); margin:0 0 14px;">毎週、指定した曜日・時刻に、選択したお客さんへ注文ページの案内メールを自動送信します。件名・本文・送り先を確認して保存してください。</p>
     <div class="field">
       <label style="display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600;">
         <input type="checkbox" id="wsch-enabled" ${sched.enabled?'checked':''} style="width:auto; box-shadow:none;" />
@@ -3465,19 +3479,40 @@ async function openWeeklyScheduleModal() {
       <p style="font-size:11px; color:var(--text-secondary); margin:0 0 6px;">※宛名（店舗名・担当者様）は自動で付きます。本文中の {{ORDER_URL}} は各顧客の注文URLに自動置換されます。</p>
       <textarea id="wsch-body" rows="12">${escapeHtml(sched.body)}</textarea>
     </div>
+    <div class="field">
+      <label class="field-label">送り先</label>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button class="btn-small cyan" id="wsch-select-all">全選択</button>
+        <button class="btn-small" id="wsch-deselect-all">全解除</button>
+      </div>
+      <div style="max-height:220px; overflow-y:auto;">${shopRows || '<p style="font-size:13px;color:var(--text-secondary);">送信可能な顧客がいません（メールアドレス・契約中をご確認ください）</p>'}</div>
+    </div>
+    <p id="wsch-count" style="font-size:13px; color:var(--text-secondary); margin:0 0 12px; font-weight:600;"></p>
     <button class="btn-primary green" id="wsch-save" style="margin-bottom:8px;">保存する</button>
   `;
   openModal('週次メール 自動送信設定', body);
+  function updateWschCount(){ const n=document.querySelectorAll('.wsch-check:checked').length; const el=$('wsch-count'); if(el) el.textContent = n + '件に自動送信します'; }
+  const selAll=$('wsch-select-all'); if(selAll) selAll.addEventListener('click', function(){ document.querySelectorAll('.wsch-check').forEach(function(c){ c.checked=true; }); updateWschCount(); });
+  const deAll=$('wsch-deselect-all'); if(deAll) deAll.addEventListener('click', function(){ document.querySelectorAll('.wsch-check').forEach(function(c){ c.checked=false; }); updateWschCount(); });
+  document.querySelectorAll('.wsch-check').forEach(function(c){ c.addEventListener('change', updateWschCount); });
+  updateWschCount();
   $('wsch-save').addEventListener('click', saveWeeklyScheduleFromModal);
 }
 
 async function saveWeeklyScheduleFromModal() {
+  const allChecks = Array.from(document.querySelectorAll('.wsch-check'));
+  const checked = allChecks.filter(function(c){ return c.checked; }).map(function(c){ return c.dataset.id; });
+  const sendToAll = allChecks.length > 0 && checked.length === allChecks.length;
+  const enabled = $('wsch-enabled').checked;
+  if (enabled && checked.length === 0) { alert('送り先を1件以上選択してください'); return; }
   const payload = {
-    enabled: $('wsch-enabled').checked,
+    enabled: enabled,
     weekday: parseInt($('wsch-weekday').value, 10),
     hour: parseInt($('wsch-hour').value, 10),
     subject: $('wsch-subject').value.trim(),
-    bodyTemplate: $('wsch-body').value
+    bodyTemplate: $('wsch-body').value,
+    sendToAll: sendToAll,
+    targetShopIds: checked
   };
   try {
     await gasRequest('setWeeklyEmailSchedule', payload);
