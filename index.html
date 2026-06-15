@@ -3431,10 +3431,10 @@ function restoreTab() {
 }
 
 async function openWeeklyScheduleModal() {
-  let sched = { enabled: false, weekday: 1, hour: 9 };
+  let sched = { enabled: false, weekday: 1, hour: 9, subject: '', body: '' };
   try {
     const r = await gasRequest('getWeeklyEmailSchedule', {});
-    if (r) sched = { enabled: !!r.enabled, weekday: r.weekday, hour: r.hour };
+    if (r) sched = { enabled: !!r.enabled, weekday: r.weekday, hour: r.hour, subject: r.subject || '', body: r.body || '' };
   } catch (e) {}
   const days = ['日曜','月曜','火曜','水曜','木曜','金曜','土曜'];
   const dayOpts = days.map((d,i)=>`<option value="${i}" ${sched.weekday===i?'selected':''}>${d}</option>`).join('');
@@ -3456,6 +3456,15 @@ async function openWeeklyScheduleModal() {
       <label class="field-label">時刻</label>
       <select id="wsch-hour">${hourOpts}</select>
     </div>
+    <div class="field">
+      <label class="field-label field-required">件名</label>
+      <input type="text" id="wsch-subject" value="${escapeHtml(sched.subject)}" />
+    </div>
+    <div class="field">
+      <label class="field-label field-required">本文</label>
+      <p style="font-size:11px; color:var(--text-secondary); margin:0 0 6px;">※宛名（店舗名・担当者様）は自動で付きます。本文中の {{ORDER_URL}} は各顧客の注文URLに自動置換されます。</p>
+      <textarea id="wsch-body" rows="12">${escapeHtml(sched.body)}</textarea>
+    </div>
     <button class="btn-primary green" id="wsch-save" style="margin-bottom:8px;">保存する</button>
   `;
   openModal('週次メール 自動送信設定', body);
@@ -3466,7 +3475,9 @@ async function saveWeeklyScheduleFromModal() {
   const payload = {
     enabled: $('wsch-enabled').checked,
     weekday: parseInt($('wsch-weekday').value, 10),
-    hour: parseInt($('wsch-hour').value, 10)
+    hour: parseInt($('wsch-hour').value, 10),
+    subject: $('wsch-subject').value.trim(),
+    bodyTemplate: $('wsch-body').value
   };
   try {
     await gasRequest('setWeeklyEmailSchedule', payload);
