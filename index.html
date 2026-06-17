@@ -1020,7 +1020,8 @@
     <button class="tab" data-tab="shops">顧客</button>
     <button class="tab" data-tab="items">商品マスタ</button>
     <button class="tab" data-tab="notice">お知らせ</button>
-    <button class="tab" data-tab="history">履歴</button>
+    <button class="tab" data-tab="history">受取完了</button>
+    <button class="tab" data-tab="invoiced">納品書完了</button>
     <button class="tab" data-tab="canceled">削除・取消</button>
   </div>
 
@@ -1083,6 +1084,12 @@
       <button class="btn-small history-sort-btn" data-sort="order">注文日順</button>
     </div>
     <div id="history-list"></div>
+  </div>
+
+  <div id="tab-invoiced" class="tab-panel" style="display:none;">
+    <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 12px;">納品書発行が完了した注文（25件ずつ表示）</p>
+    <div id="invoiced-list"></div>
+    <div id="invoiced-pager" style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center; align-items:center; margin-top:14px;"></div>
   </div>
 
   <div id="tab-canceled" class="tab-panel" style="display:none;">
@@ -1379,7 +1386,7 @@ function orderItemsLines(o) {
 }
 
 function renderOrders() {
-  const active = state.orders.filter(o => o.status !== 'done' && o.status !== 'canceled');
+  const active = state.orders.filter(o => o.status !== 'done' && o.status !== 'canceled' && o.status !== 'invoiced');
   const list = $('orders-list');
   if (active.length === 0) {
     list.innerHTML = '<p class="empty">現在の注文はありません<br>＋ボタンから登録してね</p>';
@@ -1566,6 +1573,7 @@ function renderHistory() {
       <div class="card-actions">
         <button class="btn-small yellow h-restore" data-id="${o.id}">注文へ戻す</button>
         <button class="btn-small cyan h-delivery" data-id="${o.id}">納品書発行</button>
+        <button class="btn-small green h-invoiced" data-id="${o.id}">納品書完了</button>
         <button class="btn-small yellow h-duplicate" data-id="${o.id}">複製</button>
         <button class="btn-small danger h-del" data-id="${o.id}">削除・取消</button>
       </div>
@@ -1574,6 +1582,7 @@ function renderHistory() {
 
   document.querySelectorAll('.h-restore').forEach(b => b.addEventListener('click', () => restoreOrder(b.dataset.id)));
   document.querySelectorAll('.h-delivery').forEach(b => b.addEventListener('click', () => printDeliveryNote(b.dataset.id)));
+  document.querySelectorAll('.h-invoiced').forEach(b => b.addEventListener('click', () => markInvoiced(b.dataset.id)));
   document.querySelectorAll('.h-duplicate').forEach(b => b.addEventListener('click', () => duplicateOrder(b.dataset.id)));
   document.querySelectorAll('.h-del').forEach(b => b.addEventListener('click', () => cancelOrder(b.dataset.id)));
 }
@@ -1606,11 +1615,107 @@ function renderCanceled() {
   document.querySelectorAll('.c-restore-history').forEach(b => b.addEventListener('click', () => restoreCanceledOrder(b.dataset.id, 'done')));
 }
 
+// ============================================================
+// 納品書完了タブ（25件ごとのページング）
+// ============================================================
+let invoicedPage = 1;
+const INVOICED_PER_PAGE = 25;
+
+function renderInvoiced() {
+  const list = $('invoiced-list');
+  const pager = $('invoiced-pager');
+  if (!list) return;
+  // 納品書完了にした順（invoicedAt）→ 無ければ受取日時で新しい順
+  const invoiced = state.orders.filter(o => o.status === 'invoiced')
+    .sort((a, b) => String(b.invoicedAt || b.completedAt || '').localeCompare(String(a.invoicedAt || a.completedAt || '')));
+
+  if (invoiced.length === 0) {
+    list.innerHTML = '<p class="empty">納品書完了の注文はありません</p>';
+    if (pager) pager.innerHTML = '';
+    return;
+  }
+
+  const totalPages = Math.ceil(invoiced.length / INVOICED_PER_PAGE);
+  if (invoicedPage > totalPages) invoicedPage = totalPages;
+  if (invoicedPage < 1) invoicedPage = 1;
+  const start = (invoicedPage - 1) * INVOICED_PER_PAGE;
+  const shown = invoiced.slice(start, start + INVOICED_PER_PAGE);
+
+  list.innerHTML = shown.map(o => `
+    <div class="card green">
+      <div class="card-head">
+        <p class="card-title" style="font-size:16px;">${escapeHtml(o.shop)}</p>
+        <span style="font-size:12px; color: var(--text-tertiary);">受取 ${(o.completedAt || '').slice(0,10)}</span>
+      </div>
+      <div style="margin: 6px 0;">${orderItemsLines(o)}</div>
+      ${orderTotalAmount(o) > 0 ? `<p style="font-size:15px; font-weight:700; margin:6px 0;">合計 ${formatYen(orderTotalAmount(o))}</p>` : ''}
+      <p class="card-meta"><span class="meta-label">場所</span>${escapeHtml(o.place || '')}</p>
+      ${o.completedBy ? `<p class="card-meta"><span class="meta-label">受け渡し担当</span>${escapeHtml(o.completedBy)}</p>` : ''}
+      <div class="card-actions">
+        <button class="btn-small cyan iv-delivery" data-id="${o.id}">納品書発行</button>
+        <button class="btn-small yellow iv-restore" data-id="${o.id}">受取完了へ戻す</button>
+      </div>
+    </div>
+  `).join('');
+
+  // ページャー（1, 2, 3 …）
+  let pagerHtml = '';
+  if (totalPages > 1) {
+    pagerHtml += `<button class="btn-small iv-page" data-page="${invoicedPage - 1}" ${invoicedPage === 1 ? 'disabled style="opacity:.4;"' : ''}>‹ 前</button>`;
+    for (let p = 1; p <= totalPages; p++) {
+      pagerHtml += `<button class="btn-small iv-page ${p === invoicedPage ? 'cyan' : ''}" data-page="${p}">${p}</button>`;
+    }
+    pagerHtml += `<button class="btn-small iv-page" data-page="${invoicedPage + 1}" ${invoicedPage === totalPages ? 'disabled style="opacity:.4;"' : ''}>次 ›</button>`;
+  }
+  pager.innerHTML = pagerHtml +
+    `<p class="empty" style="width:100%; padding:8px 0; margin:0;">全${invoiced.length}件 ／ ${totalPages}ページ中 ${invoicedPage}ページ目</p>`;
+
+  document.querySelectorAll('.iv-delivery').forEach(b => b.addEventListener('click', () => printDeliveryNote(b.dataset.id)));
+  document.querySelectorAll('.iv-restore').forEach(b => b.addEventListener('click', () => restoreInvoicedToReceived(b.dataset.id)));
+  document.querySelectorAll('.iv-page').forEach(b => b.addEventListener('click', () => {
+    if (b.disabled) return;
+    const p = Number(b.dataset.page);
+    if (!p) return;
+    invoicedPage = p;
+    renderInvoiced();
+    const panel = $('tab-invoiced');
+    if (panel) window.scrollTo({ top: Math.max(0, panel.offsetTop - 10), behavior: 'smooth' });
+  }));
+}
+
+async function markInvoiced(id) {
+  const idx = state.orders.findIndex(o => o.id === id);
+  if (idx === -1) return;
+  state.orders[idx].status = 'invoiced';
+  state.orders[idx].invoicedAt = new Date().toISOString();
+  saveCache();
+  renderAll();
+  toast('納品書完了へ移動しました');
+  if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    await sendOrQueue('updateOrder', state.orders[idx]);
+  }
+}
+
+async function restoreInvoicedToReceived(id) {
+  if (!confirm('この注文を「受取完了」に戻しますか？')) return;
+  const idx = state.orders.findIndex(o => o.id === id);
+  if (idx === -1) return;
+  state.orders[idx].status = 'done';
+  state.orders[idx].invoicedAt = '';
+  saveCache();
+  renderAll();
+  toast('受取完了へ戻しました');
+  if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    await sendOrQueue('updateOrder', state.orders[idx]);
+  }
+}
+
 function renderAll() {
   renderOrders();
   renderShops();
   renderItems();
   renderHistory();
+  renderInvoiced();
   renderCanceled();
   renderPlanning();
   renderNoticePreview();
@@ -1644,7 +1749,7 @@ function formatGrams(g) {
 }
 
 function getPlanningTargetOrders() {
-  const active = state.orders.filter(o => o.status !== 'done' && o.status !== 'canceled');
+  const active = state.orders.filter(o => o.status !== 'done' && o.status !== 'canceled' && o.status !== 'invoiced');
   const from = $('planning-from') ? $('planning-from').value : '';
   const to = $('planning-to') ? $('planning-to').value : '';
   return active.filter(o => {
