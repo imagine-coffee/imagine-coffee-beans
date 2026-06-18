@@ -3720,9 +3720,43 @@ $('save-config').addEventListener('click', async () => {
 });
 
 // ============================================================
+// 管理キー入力ゲート（GitHub単独表示で ?key= が無いとき）
+// ルートURL（/）をそのまま「キーを入れて管理画面に入る入口」にする。
+// GAS配信時(USE_GOOGLE_SCRIPT)はキー注入済みなので表示されない。
+// ============================================================
+function showAdminKeyGate_() {
+  var wrap = document.createElement('div');
+  wrap.id = 'admin-key-gate';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#FFFCF5;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;padding:20px;box-sizing:border-box;';
+  wrap.innerHTML =
+    '<img src="icon-192.png" alt="" style="width:72px;height:72px;border-radius:18px;" onerror="this.style.display=\'none\'" />' +
+    '<div style="font-weight:700;font-size:20px;color:#1A1A18;">IMAGINE.COFFEE 卸豆管理</div>' +
+    '<div style="font-size:14px;color:#5A5A56;">管理キーを入力してください</div>' +
+    '<input type="password" id="admin-key-input" placeholder="管理キー" autocomplete="current-password" ' +
+    'style="padding:12px 14px;font-size:16px;border:1.5px solid #1A1A18;border-radius:10px;width:min(260px,80vw);box-sizing:border-box;" />' +
+    '<button id="admin-key-go" style="padding:12px 28px;font-size:15px;font-weight:600;background:#4FB8C9;color:#fff;border:1.5px solid #1A1A18;border-radius:999px;cursor:pointer;">開く</button>' +
+    '<div id="admin-key-msg" style="font-size:13px;color:#C0392B;min-height:18px;"></div>';
+  document.body.appendChild(wrap);
+  var input = wrap.querySelector('#admin-key-input');
+  function go() {
+    var v = (input.value || '').trim();
+    if (!v) { wrap.querySelector('#admin-key-msg').textContent = '管理キーを入力してください'; return; }
+    location.replace(location.pathname + '?key=' + encodeURIComponent(v));
+  }
+  wrap.querySelector('#admin-key-go').addEventListener('click', go);
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+  input.focus();
+}
+
+// ============================================================
 // 初期化
 // ============================================================
 async function init() {
+  // GitHubでルートを直接開き、まだ鍵が無い場合はキー入力画面を表示して終了
+  if (!ADMIN_ACCESS_KEY && !USE_GOOGLE_SCRIPT) {
+    showAdminKeyGate_();
+    return;
+  }
   loadCache();
   restoreTab();
   if (USE_GOOGLE_SCRIPT) {
