@@ -13,40 +13,25 @@
 <link rel="apple-touch-icon" href="icon-192.png" />
 <meta name="theme-color" content="#FFFCF5" />
 
+<!--
+  ============================================================
+  admin.html の役割（2026-06 fetch版に変更）
+  ============================================================
+  以前は GAS の管理画面を iframe で埋め込み、Googleの警告バーを
+  CSSで隠していました。iframe をやめ、管理キー入力後は同じ仕組みの
+  fetch版管理画面 index.html?key=… へ渡すだけの「入口ページ」に変更。
+  - iframe を使わないので Googleの警告バーは出ません。
+  - GAS側の変更・再デプロイは不要です（index.html が fetch で通信）。
+  - 既存の admin.html?key=… のブックマーク／ホーム画面もそのまま使えます。
+  ============================================================
+-->
+
 <style>
-  :root {
-    /* GASの警告バーの高さ。PC実測値は48px。
-       スマホ幅では文字が折り返り高さが増えることがあるため
-       メディアクエリで余裕を持たせています。実機で隙間/見切れが
-       出る場合はここを調整してください。 */
-    --banner-h: 48px;
-    --banner-h-mobile: 96px;
-  }
   html, body {
     margin: 0;
     padding: 0;
     height: 100%;
-    overflow: hidden;
     background: #FFFCF5;
-  }
-  .frame-wrap {
-    position: fixed;
-    inset: 0;
-    overflow: hidden;
-  }
-  .frame-wrap iframe {
-    position: absolute;
-    left: 0;
-    width: 100%;
-    border: 0;
-    top: calc(-1 * var(--banner-h));
-    height: calc(100% + var(--banner-h));
-  }
-  @media (max-width: 600px) {
-    .frame-wrap iframe {
-      top: calc(-1 * var(--banner-h-mobile));
-      height: calc(100% + var(--banner-h-mobile));
-    }
   }
   .loading {
     position: fixed;
@@ -91,23 +76,17 @@
 <body>
 <div id="root"></div>
 <script>
-  // ここにデプロイ済みのGAS Web App URL(/exec)を設定
-  var GAS_URL = "https://script.google.com/macros/s/AKfycbzFh8EZnEpMSN1-16sIs6TAkyVMalY9mqhjF020z7rqsDnTduODxotmYcZh85uTK6O2/exec";
+  // 管理画面（fetch版）の実体。同じフォルダの index.html に渡す。
+  var ADMIN_APP = 'index.html';
 
   var params = new URLSearchParams(location.search);
   var key = params.get('key') || '';
   var root = document.getElementById('root');
 
-  function showFrame(key) {
-    root.innerHTML =
-      '<div class="loading" id="loading">読み込み中...</div>' +
-      '<div class="frame-wrap"><iframe id="appFrame" title="IMAGINE.COFFEE 卸豆管理"></iframe></div>';
-    var frame = document.getElementById('appFrame');
-    frame.src = GAS_URL + '?page=admin&key=' + encodeURIComponent(key);
-    frame.addEventListener('load', function () {
-      var el = document.getElementById('loading');
-      if (el) el.style.display = 'none';
-    });
+  // 管理画面(fetch版)へ渡す。iframeは使わないのでGoogleの警告バーは出ない。
+  function goToAdmin(k) {
+    root.innerHTML = '<div class="loading">読み込み中...</div>';
+    location.replace(ADMIN_APP + '?key=' + encodeURIComponent(k));
   }
 
   function showKeyForm() {
@@ -117,17 +96,20 @@
       '<input type="password" id="keyInput" placeholder="管理キー" />' +
       '<button id="goBtn">開く</button>' +
       '</div>';
-    document.getElementById('goBtn').addEventListener('click', function () {
-      var v = document.getElementById('keyInput').value.trim();
-      if (!v) return;
-      var url = new URL(location.href);
-      url.searchParams.set('key', v);
-      location.href = url.toString();
+    var input = document.getElementById('keyInput');
+    function submit() {
+      var v = input.value.trim();
+      if (v) goToAdmin(v);
+    }
+    document.getElementById('goBtn').addEventListener('click', submit);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') submit();
     });
+    input.focus();
   }
 
   if (key) {
-    showFrame(key);
+    goToAdmin(key);
   } else {
     showKeyForm();
   }
