@@ -2,117 +2,3754 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>IMAGINE.COFFEE 卸豆管理</title>
-
-<!-- PWA / ホーム画面追加用 -->
-<link rel="manifest" href="manifest-admin.json" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="IMAGINE 卸管理" />
-<link rel="apple-touch-icon" href="icon-192.png" />
-<meta name="theme-color" content="#FFFCF5" />
-
-<!--
-  ============================================================
-  admin.html の役割（2026-06 fetch版に変更）
-  ============================================================
-  以前は GAS の管理画面を iframe で埋め込み、Googleの警告バーを
-  CSSで隠していました。iframe をやめ、管理キー入力後は同じ仕組みの
-  fetch版管理画面 index.html?key=… へ渡すだけの「入口ページ」に変更。
-  - iframe を使わないので Googleの警告バーは出ません。
-  - GAS側の変更・再デプロイは不要です（index.html が fetch で通信）。
-  - 既存の admin.html?key=… のブックマーク／ホーム画面もそのまま使えます。
-  ============================================================
--->
-
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="卸豆管理" />
+<title>IMAGINE.COFFEE 卸豆管理</title>
 <style>
-  html, body {
+  :root {
+    --bg: #FFFCF5;
+    --surface: #FFFFFF;
+    --text: #1A1A18;
+    --text-secondary: #5A5A56;
+    --text-tertiary: #9A9A96;
+    --border: #1A1A18;
+    --border-soft: #E5E2D8;
+    --accent-cyan: #4FB8C9;
+    --accent-cyan-light: #DCF1F4;
+    --accent-yellow: #F5D547;
+    --accent-yellow-light: #FFF6D1;
+    --accent-pink: #F4A8B8;
+    --accent-pink-light: #FCE3E9;
+    --accent-coral: #F08A5D;
+    --accent-coral-light: #FBDBC9;
+    --accent-red: #E85D5D;
+    --accent-red-light: #F9D7D7;
+    --accent-green: #A8CF8E;
+    --accent-green-light: #E6F1DA;
+    --shadow: 0 2px 0 var(--border);
+    --shadow-lg: 0 3px 0 var(--border);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
     margin: 0;
-    padding: 0;
-    height: 100%;
-    background: #FFFCF5;
-  }
-  .loading {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
-    color: #9A9A96;
-    font-size: 14px;
-  }
-  .key-form {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 12px;
-    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
-    background: #FFFCF5;
-  }
-  .key-form input {
-    padding: 12px 14px;
+    background: var(--bg);
+    color: var(--text);
     font-size: 16px;
-    border: 1.5px solid #1A1A18;
-    border-radius: 10px;
-    width: 240px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
   }
-  .key-form button {
-    padding: 12px 24px;
+  .app {
+    width: 100%;
+    max-width: none;
+    margin: 0 auto;
+    padding: 18px 16px;
+    padding-bottom: 100px;
+  }
+
+  /* ===== ヘッダー ===== */
+  .header { margin-bottom: 22px; }
+  .brand {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--text-tertiary);
+    margin: 0 0 4px;
+    font-weight: 500;
+  }
+  .title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .title { font-size: 26px; font-weight: 700; margin: 0; }
+  .sync-status {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 12px;
+    box-shadow: var(--shadow);
+  }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-tertiary); }
+  .sync-dot.online { background: var(--accent-green); }
+  .sync-dot.offline { background: var(--accent-coral); }
+
+  /* ===== タブ ===== */
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    overflow-x: auto;
+    padding: 2px 0 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    padding: 12px 18px;
+    font-size: 14px;
+    color: var(--text);
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+    white-space: nowrap;
+    box-shadow: var(--shadow);
+    transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease, background 0.2s ease;
+    flex-shrink: 0;
+  }
+  .tab:hover { transform: translateY(-1px); }
+  .tab:active { transform: translateY(2px) scale(0.97); box-shadow: 0 0 0 var(--border); }
+  .tab.active { background: var(--accent-cyan); color: white; }
+
+  /* ===== プライマリボタン ===== */
+  .btn-primary {
+    width: 100%;
+    background: var(--accent-cyan);
+    color: white;
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    padding: 16px;
     font-size: 15px;
     font-weight: 600;
-    background: #4FB8C9;
-    color: white;
-    border: 1.5px solid #1A1A18;
-    border-radius: 999px;
     cursor: pointer;
+    margin-bottom: 16px;
+    font-family: inherit;
+    box-shadow: var(--shadow-lg);
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, filter 0.2s ease;
+  }
+  .btn-primary:hover { transform: translateY(-1px); filter: brightness(1.05); }
+  .btn-primary:active { transform: translateY(3px) scale(0.98); box-shadow: 0 0 0 var(--border); }
+  .btn-primary.yellow { background: var(--accent-yellow); color: var(--text); }
+  .btn-primary.pink { background: var(--accent-pink); color: var(--text); }
+  .btn-primary.red { background: var(--accent-red); color: white; }
+  .order-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 40px;
+    background: rgba(255, 255, 255, 0.5);
+    padding: 14px 16px;
+    margin-bottom: 18px;
+  }
+  .order-actions .btn-primary {
+    margin-bottom: 0;
+  }
+
+  /* ===== カード ===== */
+  .card {
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 18px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+    animation: cardIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 4px 0 var(--border); }
+  .card.cyan { background: var(--accent-cyan-light); }
+  .card.yellow { background: var(--accent-yellow-light); }
+  .card.pink { background: var(--accent-pink-light); }
+  .card.coral { background: var(--accent-coral-light); }
+  .card.red { background: var(--accent-red-light); }
+  .card.green { background: var(--accent-green-light); }
+  .card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .card-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0;
+  }
+  .card-meta {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 3px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .meta-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    letter-spacing: 0.05em;
+    background: rgba(255,255,255,0.7);
+    border: 1px solid var(--border-soft);
+    border-radius: 4px;
+    padding: 1px 7px;
+    white-space: nowrap;
+  }
+  .card-memo-wrap {
+    margin: 12px 0 0;
+  }
+  .card-memo-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--text-tertiary);
+    margin: 0 0 4px;
+  }
+  .card-memo {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0;
+    padding: 10px 12px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 10px;
+    border: 1px solid var(--border-soft);
+    white-space: pre-wrap;
+  }
+  .card-price {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 4px 0 0;
+  }
+
+  /* 注文アイテム行表示 */
+  .order-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin: 8px 0;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--border-soft);
+  }
+  .order-line:last-child { border-bottom: none; }
+  .order-line-name {
+    font-size: 17px;
+    font-weight: 700;
+    flex: 1;
+  }
+  .order-line-amount {
+    font-size: 17px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .amount-pending {
+    color: var(--accent-coral);
+    font-size: 13px;
+    font-weight: 800;
+  }
+  .order-line-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    margin-left: 6px;
+  }
+  .grind-tag {
+    display: inline-block;
+    background: var(--accent-coral-light);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 11px;
+    padding: 2px 9px;
+    margin-left: 4px;
+    font-weight: 600;
+    vertical-align: 1px;
+  }
+
+  /* ===== バッジ ===== */
+  .badge {
+    font-size: 12px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1.5px solid var(--border);
+  }
+  .badge-active { background: var(--accent-green); }
+  .badge-pending { background: var(--accent-pink-light); }
+  .badge-pause { background: var(--accent-yellow); }
+  .badge-end { background: white; color: var(--text-secondary); }
+  .badge-bean { background: var(--accent-coral-light); }
+  .badge-item { background: var(--accent-cyan-light); }
+  .badge-variable { background: var(--accent-yellow-light); }
+
+  /* ===== 小さいボタン ===== */
+  .card-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+  }
+  .btn-small {
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--text);
+    font-weight: 500;
+    box-shadow: 0 1.5px 0 var(--border);
+    transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
+  }
+  .btn-small:hover { transform: translateY(-1px); }
+  .btn-small:active { transform: translateY(1.5px) scale(0.96); box-shadow: 0 0 0 var(--border); }
+  .btn-small.cyan { background: var(--accent-cyan-light); }
+  .btn-small.yellow { background: var(--accent-yellow-light); }
+  .btn-small.green { background: var(--accent-green-light); }
+  .btn-small.danger { color: var(--accent-coral); }
+
+  /* ===== Empty ===== */
+  .empty {
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: 13px;
+    padding: 40px 0;
+  }
+
+  /* ===== モーダル ===== */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 26, 24, 0.5);
+    z-index: 100;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .modal-overlay.show { opacity: 1; pointer-events: auto; }
+  .modal {
+    background: var(--bg);
+    border-top: 1.5px solid var(--border);
+    border-radius: 24px 24px 0 0;
+    width: 100%;
+    max-width: 720px;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 20px;
+    transform: translateY(100%);
+    transition: transform 0.25s ease-out;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal-overlay.show .modal { transform: translateY(0); }
+  .modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1.5px solid var(--border);
+  }
+  .modal-title { font-size: 18px; font-weight: 700; margin: 0; }
+  .modal-close {
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
+  }
+  .modal-close:hover { transform: rotate(90deg); }
+  .modal-close:active { transform: translateY(2px) scale(0.94); box-shadow: 0 0 0 var(--border); }
+
+  /* ===== フォーム ===== */
+  .field { margin-bottom: 16px; }
+  .field-label {
+    font-size: 13px;
+    color: var(--text);
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .field-required::after { content: " *"; color: var(--accent-coral); }
+  input[type="text"], input[type="number"], input[type="date"], input[type="tel"], input[type="url"], select, textarea {
+    width: 100%;
+    padding: 13px 15px;
+    font-size: 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    background: white;
+    font-family: inherit;
+    color: var(--text);
+    -webkit-appearance: none;
+    appearance: none;
+    box-shadow: 0 1.5px 0 var(--border);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  /* 日付入力：カレンダーマーク部分だけクリックでピッカー表示 */
+  input[type="date"] {
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231A1A18' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3crect x='3' y='4' width='18' height='18' rx='2' ry='2'/%3e%3cline x1='16' y1='2' x2='16' y2='6'/%3e%3cline x1='8' y1='2' x2='8' y2='6'/%3e%3cline x1='3' y1='10' x2='21' y2='10'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 18px;
+    padding-right: 42px;
+    position: relative;
+  }
+  /* マーク部分（右36px）だけクリック可能にする。残り（テキスト部分）はカレンダーを開かない */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 42px;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+  select {
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231A1A18' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    padding-right: 38px;
+    cursor: pointer;
+  }
+  textarea { resize: vertical; min-height: 60px; }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 0 3px var(--accent-cyan-light);
+  }
+
+  /* ===== 注文アイテム入力 ===== */
+  .order-item {
+    background: white;
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .order-item-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .order-item-num {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--accent-yellow-light);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 10px;
+  }
+  .order-item-del {
+    background: var(--accent-pink-light);
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .input-mode-toggle {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+  .input-mode-btn {
+    flex: 1;
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    padding: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+  }
+  .input-mode-btn.active { background: var(--accent-cyan); color: white; }
+
+  .price-display {
+    background: var(--accent-yellow-light);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+  }
+  .price-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+  .price-edit {
+    width: 120px !important;
+    text-align: right;
+    padding: 6px 10px !important;
+    font-size: 14px !important;
+    font-weight: 700;
+  }
+  .grind-toggle {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .grind-btn {
+    flex: 1;
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    padding: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+  }
+  .grind-btn.active { background: var(--accent-coral); color: white; }
+
+  .btn-add-item {
+    width: 100%;
+    background: var(--accent-yellow-light);
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 14px;
+  }
+  .order-summary {
+    background: var(--accent-coral-light);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    margin: 14px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .order-summary-label { font-size: 12px; font-weight: 600; }
+  .order-summary-value { font-size: 20px; font-weight: 700; }
+
+  /* ===== 商品マスタ：容量バリエーション ===== */
+  .variant-list { margin-top: 10px; }
+  .variant-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 36px;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+  }
+  .variant-row input { padding: 8px 10px !important; font-size: 14px !important; }
+  .variant-del {
+    background: var(--accent-pink-light);
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    width: 32px; height: 32px;
+    cursor: pointer;
+    padding: 0;
+    font-size: 12px;
+  }
+  .variant-add {
+    background: var(--accent-yellow-light);
+    border: 1.5px dashed var(--border);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .variant-badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: white;
+    border: 1px solid var(--border);
+    margin: 2px 4px 2px 0;
+    font-weight: 500;
+  }
+  .item-type-toggle {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+  .item-type-btn {
+    flex: 1;
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    padding: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+  }
+  .item-type-btn.active { background: var(--accent-cyan); color: white; }
+
+  /* ===== 焙煎計画 ===== */
+  .planning-filter {
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .planning-filter-title {
+    font-size: 12px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    color: var(--text-secondary);
+  }
+  .planning-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .planning-filter-row input[type="date"] {
+    flex: 1;
+    padding: 9px 12px !important;
+    font-size: 14px !important;
+  }
+  .planning-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease;
+  }
+  .planning-item:active { transform: translateY(1px); }
+  .planning-item.selected { background: var(--accent-cyan-light); }
+  .planning-check {
+    width: 22px !important;
+    height: 22px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    cursor: pointer;
+    box-shadow: none !important;
+    accent-color: var(--accent-cyan);
+    flex-shrink: 0;
+    margin-top: 2px !important;
+  }
+  .planning-item-body { flex: 1; min-width: 0; }
+  .planning-item-shop {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 2px;
+  }
+  .planning-item-meta {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin: 0 0 4px;
+  }
+  .planning-item-items {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+  .planning-result {
+    background: var(--accent-yellow-light);
+    border: 1.5px solid var(--border);
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-lg);
+  }
+  .planning-result-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0 0 10px;
+    padding-bottom: 8px;
+    border-bottom: 1.5px dashed var(--border);
+  }
+  .planning-result-section {
+    margin: 14px 0 16px;
+  }
+  .planning-result-section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    box-shadow: var(--shadow);
+    padding: 8px 14px;
+    margin: 0 0 10px;
+    font-size: 14px;
+    font-weight: 800;
+  }
+  .planning-result-section-title.bean {
+    background: var(--accent-coral-light);
+  }
+  .planning-result-section-title.other {
+    background: var(--accent-cyan-light);
+  }
+  .planning-result-section-count {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .planning-result-card {
+    background: white;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .planning-result-name {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+  .planning-result-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    margin: 2px 0;
+    color: var(--text-secondary);
+  }
+  .planning-result-line span {
+    font-weight: 600;
+    color: var(--text);
+  }
+  .planning-result-total {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    font-weight: 700;
+    margin: 6px 0 0;
+    padding-top: 6px;
+    border-top: 1px dashed var(--border-soft);
+  }
+  .planning-grand-total {
+    display: flex;
+    justify-content: space-between;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 12px;
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    margin-top: 12px;
+  }
+  .delivery-note-print {
+    display: none;
+  }
+  .delivery-note {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    color: #111;
+    background: #fff;
+    padding: 28px;
+  }
+  .delivery-note-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    border-bottom: 2px solid #111;
+    padding-bottom: 18px;
+    margin-bottom: 22px;
+  }
+  .delivery-note-title {
+    font-size: 30px;
+    letter-spacing: .18em;
+    font-weight: 700;
+    margin: 0 0 12px;
+  }
+  .delivery-note-shop {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+  }
+  .delivery-note-meta {
+    font-size: 12px;
+    color: #444;
+    margin: 3px 0;
+    text-align: right;
+  }
+  .delivery-note-company {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    text-align: right;
+  }
+  .delivery-note-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    font-size: 13px;
+  }
+  .delivery-note-table th,
+  .delivery-note-table td {
+    border: 1px solid #222;
+    padding: 9px 8px;
+    vertical-align: top;
+  }
+  .delivery-note-table th {
+    background: #f2f2f2;
+    text-align: left;
+  }
+  .delivery-note-table .num {
+    text-align: right;
+    white-space: nowrap;
+  }
+  .delivery-note-total {
+    display: flex;
+    justify-content: flex-end;
+    gap: 22px;
+    font-size: 18px;
+    font-weight: 700;
+    border-top: 2px solid #111;
+    padding-top: 12px;
+    margin-top: 16px;
+  }
+  .delivery-note-memo {
+    border: 1px solid #222;
+    padding: 10px 12px;
+    min-height: 54px;
+    white-space: pre-wrap;
+    font-size: 13px;
+    margin-top: 18px;
+  }
+  @media print {
+    body.print-planning {
+      background: #fff;
+    }
+    body.print-planning .header,
+    body.print-planning .tabs,
+    body.print-planning .config-panel,
+    body.print-planning .modal-overlay,
+    body.print-planning .toast,
+    body.print-planning .planning-filter,
+    body.print-planning #planning-orders-list {
+      display: none !important;
+    }
+    body.print-planning .app {
+      max-width: none;
+      padding: 0;
+    }
+    body.print-planning .tab-panel {
+      display: none !important;
+    }
+    body.print-planning #tab-planning {
+      display: block !important;
+    }
+    body.print-planning #planning-result .planning-result {
+      border: 0;
+      box-shadow: none;
+      padding: 0;
+      background: #fff;
+    }
+    body.print-delivery {
+      background: #fff;
+    }
+    body.print-delivery .app,
+    body.print-delivery .modal-overlay,
+    body.print-delivery .toast {
+      display: none !important;
+    }
+    body.print-delivery .delivery-note-print {
+      display: block !important;
+    }
+  }
+  .config-panel {
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    box-shadow: var(--shadow);
+  }
+  .config-panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .config-panel-body {
+    margin-top: 14px;
+    display: none;
+    padding-top: 14px;
+    border-top: 1.5px solid var(--border-soft);
+  }
+  .config-panel.open .config-panel-body { display: block; }
+  .config-warn {
+    background: var(--accent-yellow-light);
+    color: var(--text);
+    border: 1.5px solid var(--border);
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 12px;
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+  .config-ok {
+    background: var(--accent-green-light);
+    color: var(--text);
+    border: 1.5px solid var(--border);
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 12px;
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+
+  /* ===== トースト ===== */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--text);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    opacity: 0;
+    transition: all 0.25s;
+    pointer-events: none;
+    z-index: 200;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.3);
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  a { color: var(--accent-cyan); text-decoration: none; font-weight: 500; }
+  a:active { opacity: 0.7; }
+  /* スマホ（タッチ＋狭い画面）のみ大きい文字に。iPadはPCと同じ標準サイズ */
+  /* iPad・タブレット：横幅を活かして2列＋ほどよく拡大（モバイルは基準のまま） */
+  @media (min-width: 768px) {
+    body { font-size: 17px; }
+    .app { max-width: 860px; margin: 0 auto; padding: 24px 20px 100px; }
+    .title { font-size: 28px; }
+    .tab { font-size: 15px; }
+    .btn-primary { font-size: 16px; }
+    .card-title { font-size: 19px; }
+    .card-meta { font-size: 14px; }
+    .order-line-name, .order-line-amount { font-size: 18px; }
+    .field-label { font-size: 14px; }
+    input, select, textarea { font-size: 16px; }
+    #orders-list, #shops-list, #items-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    #orders-list > .card, #shops-list > .card, #items-list > .card { margin-bottom: 0; }
+    #orders-list > .empty, #shops-list > .empty, #items-list > .empty { grid-column: 1 / -1; }
+  }
+
+  /* PC：もう少し広く中央寄せ */
+  @media (min-width: 1100px) {
+    .app { max-width: 1000px; }
   }
 </style>
 </head>
 <body>
-<div id="root"></div>
+<div class="app">
+
+  <div class="header">
+    <p class="brand">IMAGINE.COFFEE</p>
+    <div class="title-row">
+      <h1 class="title">卸豆管理</h1>
+      <div class="sync-status">
+        <span class="sync-dot" id="sync-dot"></span>
+        <span id="sync-text">未接続</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="config-panel" id="config-panel" style="display:none;">
+    <div class="config-panel-head" id="config-toggle">
+      <span>⚙️ 接続設定</span>
+      <span id="config-arrow">▼</span>
+    </div>
+    <div class="config-panel-body">
+      <div id="config-warn" class="config-warn" style="display:none;">
+        Google Apps Script のURLを設定すると、3店舗でリアルタイム共有できます。
+      </div>
+      <div id="config-ok" class="config-ok" style="display:none;">
+        ✓ Google Drive と Slack に接続されています
+      </div>
+      <div class="field">
+        <label class="field-label">Google Apps Script Web App URL</label>
+        <input type="url" id="gas-url" placeholder="https://script.google.com/macros/s/..." />
+      </div>
+      <button class="btn-primary" id="save-config" style="margin-bottom: 0;">設定を保存して接続テスト</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="orders">注文</button>
+    <button class="tab" data-tab="planning">焙煎計画</button>
+    <button class="tab" data-tab="shops">顧客</button>
+    <button class="tab" data-tab="items">商品マスタ</button>
+    <button class="tab" data-tab="notice">お知らせ</button>
+    <button class="tab" data-tab="history">受取完了</button>
+    <button class="tab" data-tab="invoiced">納品書完了</button>
+    <button class="tab" data-tab="canceled">削除・取消</button>
+  </div>
+
+  <div id="tab-orders" class="tab-panel">
+    <div class="order-actions">
+      <button class="btn-primary" id="add-order-btn">＋ 店舗用発注</button>
+      <button class="btn-primary" id="add-reception-btn">＋ 店頭受付</button>
+    </div>
+    <div id="orders-list"></div>
+  </div>
+
+  <div id="tab-planning" class="tab-panel" style="display:none;">
+    <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 14px;">注文を選んで、必要な豆量を集計します</p>
+    
+    <div class="planning-filter">
+      <p class="planning-filter-title">期間でフィルター（希望のお渡し・お届け日）</p>
+      <div class="planning-filter-row">
+        <input type="date" id="planning-from" />
+        <span style="font-size: 12px; color: var(--text-secondary);">〜</span>
+        <input type="date" id="planning-to" />
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+        <button class="btn-small" id="planning-clear-filter">期間をクリア</button>
+        <button class="btn-small cyan" id="planning-select-all">全て選択</button>
+        <button class="btn-small" id="planning-deselect-all">全て解除</button>
+        <button class="btn-small green" id="planning-print">集計表をPDF/印刷</button>
+      </div>
+    </div>
+
+    <div id="planning-result"></div>
+    <div id="planning-orders-list"></div>
+  </div>
+
+  <div id="tab-shops" class="tab-panel" style="display:none;">
+    <button class="btn-primary yellow" id="add-shop-btn">＋ 新しい顧客を登録</button>
+    <button class="btn-primary green" id="send-weekly-mails-btn">今週の案内メールを送信</button>
+    <button class="btn-primary cyan" id="weekly-schedule-btn">週次メールの自動送信を設定</button>
+    <button class="btn-primary" id="send-custom-mail-btn">お知らせメールを送信</button>
+    <button class="btn-primary cyan" id="copy-signup-url-btn">新規登録URLをコピー</button>
+    <div id="shops-list"></div>
+  </div>
+
+  <div id="tab-items" class="tab-panel" style="display:none;">
+    <button class="btn-primary red" id="add-item-btn">＋ 新しい商品を登録</button>
+    <div id="items-list"></div>
+  </div>
+
+  <div id="tab-notice" class="tab-panel" style="display:none;">
+    <button class="btn-primary yellow" id="edit-notice-btn">お客さん画面のお知らせを設定</button>
+    <div id="notice-preview"></div>
+    <button class="btn-primary cyan" id="edit-price-list-btn" style="margin-top:14px;">卸販売価格表を編集（登録ページに表示）</button>
+    <div id="price-list-preview"></div>
+  </div>
+
+  <div id="tab-history" class="tab-panel" style="display:none;">
+    <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 12px;">受け渡し済みの記録</p>
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+      <span style="font-size:12px; color: var(--text-secondary); font-weight:600;">並び順</span>
+      <button class="btn-small history-sort-btn" data-sort="completed">受け取り日順</button>
+      <button class="btn-small history-sort-btn" data-sort="order">注文日順</button>
+    </div>
+    <div id="history-list"></div>
+  </div>
+
+  <div id="tab-invoiced" class="tab-panel" style="display:none;">
+    <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 12px;">納品書発行が完了した注文（25件ずつ表示）</p>
+    <div id="invoiced-list"></div>
+    <div id="invoiced-pager" style="display:flex; gap:6px; flex-wrap:wrap; justify-content:center; align-items:center; margin-top:14px;"></div>
+  </div>
+
+  <div id="tab-canceled" class="tab-panel" style="display:none;">
+    <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 12px;">削除・取消した注文の保管場所</p>
+    <div id="canceled-list"></div>
+  </div>
+
+</div>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal">
+    <div class="modal-head">
+      <h3 class="modal-title" id="modal-title">タイトル</h3>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="delivery-note-print" id="delivery-note-print"></div>
+
 <script>
-  // 管理画面（fetch版）の実体。同じフォルダの index.html に渡す。
-  var ADMIN_APP = 'index.html';
+// ============================================================
+// IMAGINE.COFFEE 卸豆管理アプリ v3
+// ============================================================
+// 管理キー：Apps Script配信時は doGet で key 検証済みのうえ、テンプレートでここに注入される。
+// （GASのサンドボックスiframeでは location.search に ?key= が引き継がれないため、注入方式を使う）
+// ローカルファイルで開いた場合は注入されないので、URLの ?key= から読む。
+const INJECTED_ADMIN_KEY = '<?!= adminKey ?>';
+const ADMIN_ACCESS_KEY = INJECTED_ADMIN_KEY.indexOf('\x3c?') === -1
+  ? INJECTED_ADMIN_KEY
+  : (new URLSearchParams(location.search).get('key') || '');
 
-  var params = new URLSearchParams(location.search);
-  var key = params.get('key') || '';
-  var root = document.getElementById('root');
+const STORAGE_KEYS = {
+  GAS_URL: 'imagine_gas_url',
+  ORDERS: 'imagine_orders_cache',
+  SHOPS: 'imagine_shops_cache',
+  ITEMS: 'imagine_items_cache',
+  DRAFT_ORDER: 'imagine_draft_order',
+  DRAFT_SHOP: 'imagine_draft_shop',
+  DRAFT_ITEM: 'imagine_draft_item',
+  CURRENT_TAB: 'imagine_current_tab',
+  PENDING_OPS: 'imagine_pending_ops'
+};
 
-  // 管理画面(fetch版)へ渡す。iframeは使わないのでGoogleの警告バーは出ない。
-  function goToAdmin(k) {
-    root.innerHTML = '<div class="loading">読み込み中...</div>';
-    location.replace(ADMIN_APP + '?key=' + encodeURIComponent(k));
+// どの端末でも自動接続できるようGAS URLを既定値として埋め込み（端末ごとの手入力を不要にする）
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzFh8EZnEpMSN1-16sIs6TAkyVMalY9mqhjF020z7rqsDnTduODxotmYcZh85uTK6O2/exec';
+
+let state = {
+  orders: [],
+  shops: [],
+  items: [],  // 商品マスタ（豆・バッグなど）
+  settings: [],
+  gasUrl: (function(){ var u = (localStorage.getItem(STORAGE_KEYS.GAS_URL) || '').trim(); return /\/exec$/.test(u) ? u : DEFAULT_GAS_URL; })(),
+  online: false,
+  currentTab: localStorage.getItem(STORAGE_KEYS.CURRENT_TAB) || 'orders'
+};
+
+// ============================================================
+// ユーティリティ
+// ============================================================
+function $(id) { return document.getElementById(id); }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function appScriptUrl() {
+  if (state.gasUrl) return state.gasUrl;
+  if (location.protocol.indexOf('http') === 0) return location.href.split('?')[0];
+  return '';
+}
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+// 受け取り方法の選択肢（ここで一元管理）
+const PLACE_OPTIONS = ['伊勢宮店', 'SUNAGODA店', 'ロースタリー', '配送でのお受け取り'];
+function placeOptionsHtml(selected) {
+  return PLACE_OPTIONS.map(p => `<option value="${escapeHtml(p)}" ${selected === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('');
+}
+function imageSrc(url) {
+  const raw = String(url || '').trim();
+  if (!raw) return '';
+  const driveMatch = raw.match(/drive\.google\.com\/file\/d\/([^/]+)/) || raw.match(/[?&]id=([^&]+)/);
+  if (driveMatch) return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(driveMatch[1]) + '&sz=w1200';
+  return raw;
+}
+function productImageHtml(url, alt) {
+  const src = imageSrc(url);
+  if (!src) return '';
+  return `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt || '')}" loading="lazy" onerror="this.style.display='none';" style="width:64px; height:64px; object-fit:cover; border:1.5px solid var(--border); border-radius:12px; margin: 4px 0 10px; background:white;" />`;
+}
+function formatYen(n) {
+  if (!n && n !== 0) return '';
+  return '¥' + Math.round(Number(n)).toLocaleString();
+}
+function orderHasPendingAmount(o) {
+  return (o.items || []).some(it => !(Number(it.amount) > 0));
+}
+function formatVariantPrice(v) {
+  return Number(v.price) > 0 ? formatYen(v.price) : '価格未登録';
+}
+
+function variantPriceForItem(item, kind, size) {
+  if (!item || !size) return 0;
+  const matched = variantsForItem(item, kind).find(v => String(v.size) === String(size));
+  return matched ? Number(matched.price) || 0 : 0;
+}
+
+// ============================================================
+// GAS連携
+// ============================================================
+// ============================================================
+// API通信
+// google.script.run（Apps Script配信時）優先・fetch（ローカル時）フォールバック
+// ============================================================
+const USE_GOOGLE_SCRIPT = (typeof google !== 'undefined' && google.script && google.script.run);
+
+async function gasRequest(action, payload = {}) {
+  const requestPayload = Object.assign({}, payload);
+  if (ADMIN_ACCESS_KEY) {
+    requestPayload.__adminKey = ADMIN_ACCESS_KEY;
   }
-
-  function showKeyForm() {
-    root.innerHTML =
-      '<div class="key-form">' +
-      '<div style="font-weight:700;font-size:18px;">管理キーを入力</div>' +
-      '<input type="password" id="keyInput" placeholder="管理キー" />' +
-      '<button id="goBtn">開く</button>' +
-      '</div>';
-    var input = document.getElementById('keyInput');
-    function submit() {
-      var v = input.value.trim();
-      if (v) goToAdmin(v);
-    }
-    document.getElementById('goBtn').addEventListener('click', submit);
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') submit();
+  // Apps Scriptから配信されている場合は google.script.run を使う（CORS問題なし）
+  if (USE_GOOGLE_SCRIPT) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(result => {
+          if (result && result.error) reject(new Error(result.error));
+          else resolve(result);
+        })
+        .withFailureHandler(err => reject(err))
+        .apiHandler(action, requestPayload);
     });
-    input.focus();
+  }
+  // ローカルファイルから開いている場合は fetch を使う
+  if (!state.gasUrl) throw new Error('GAS URL未設定');
+  const url = state.gasUrl + '?action=' + encodeURIComponent(action);
+  const res = await fetch(url, {
+    method: 'POST',
+    body: JSON.stringify(requestPayload),
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+  });
+  if (!res.ok) throw new Error('通信エラー');
+  return await res.json();
+}
+
+async function syncFromServer() {
+  // Apps Script配信時はgoogle.script.runで通信、ローカル時はgasUrl必須
+  if (!USE_GOOGLE_SCRIPT && !state.gasUrl) return false;
+  try {
+    // 先に未送信キューを再送してから最新データを取得（ローカル変更がlistで上書きされて消えるのを防ぐ）
+    await flushPendingOps();
+    const data = await gasRequest('list');
+    state.orders = data.orders || [];
+    state.shops = data.shops || [];
+    state.items = data.items || [];
+    state.settings = data.settings || [];
+    saveCache();
+    setOnline(true);
+    return true;
+  } catch (e) {
+    setOnline(false);
+    return false;
+  }
+}
+
+function setOnline(ok) {
+  state.online = ok;
+  const dot = $('sync-dot');
+  const txt = $('sync-text');
+  if (ok) {
+    dot.className = 'sync-dot online';
+    txt.textContent = '接続中';
+  } else if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    dot.className = 'sync-dot offline';
+    txt.textContent = 'オフライン';
+  } else {
+    dot.className = 'sync-dot';
+    txt.textContent = '未接続';
+  }
+  $('config-ok').style.display = ok ? 'block' : 'none';
+  $('config-warn').style.display = ok ? 'none' : 'block';
+}
+
+function saveCache() {
+  localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(state.orders));
+  localStorage.setItem(STORAGE_KEYS.SHOPS, JSON.stringify(state.shops));
+  localStorage.setItem(STORAGE_KEYS.ITEMS, JSON.stringify(state.items));
+}
+
+function loadCache() {
+  try {
+    state.orders = JSON.parse(localStorage.getItem(STORAGE_KEYS.ORDERS) || '[]');
+    state.shops = JSON.parse(localStorage.getItem(STORAGE_KEYS.SHOPS) || '[]');
+    state.items = JSON.parse(localStorage.getItem(STORAGE_KEYS.ITEMS) || '[]');
+  } catch (e) {
+    state.orders = []; state.shops = []; state.items = [];
+  }
+}
+
+// ============================================================
+// オフライン再送キュー
+// 通信失敗した書き込みをlocalStorageに積み、接続回復時に自動再送する
+// ============================================================
+function loadPendingOps() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING_OPS) || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+function savePendingOps(ops) {
+  localStorage.setItem(STORAGE_KEYS.PENDING_OPS, JSON.stringify(ops));
+}
+
+async function sendOrQueue(action, payload) {
+  try {
+    await gasRequest(action, payload);
+    return true;
+  } catch (e) {
+    const ops = loadPendingOps();
+    ops.push({ action: action, payload: payload, queuedAt: new Date().toISOString() });
+    savePendingOps(ops);
+    toast('通信できないため一時保存しました。接続回復後に自動送信します');
+    return false;
+  }
+}
+
+async function flushPendingOps() {
+  let ops = loadPendingOps();
+  let sent = 0;
+  while (ops.length > 0) {
+    try {
+      await gasRequest(ops[0].action, ops[0].payload);
+      ops.shift();
+      savePendingOps(ops);
+      sent++;
+    } catch (e) {
+      break; // まだ繋がらない場合は次回の同期で再試行
+    }
+  }
+  if (sent > 0) toast('未送信だった' + sent + '件をサーバーに送信しました');
+  return ops.length === 0;
+}
+
+// ============================================================
+// レンダリング
+// ============================================================
+function shopStatusBadge(status) {
+  const map = {
+    'active': { label: '契約中', cls: 'badge-active' },
+    'pending': { label: '確認待ち', cls: 'badge-pending' },
+    'pause': { label: '休止中', cls: 'badge-pause' },
+    'end': { label: '終了', cls: 'badge-end' }
+  };
+  const s = map[status] || map['active'];
+  return `<span class="badge ${s.cls}">${s.label}</span>`;
+}
+
+function orderTotalAmount(o) {
+  if (!o.items || !o.items.length) return 0;
+  return o.items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0);
+}
+
+// 注文内容を「豆 → その他商品」の順に並び替え
+function sortedOrderItems(o) {
+  if (!o.items || !o.items.length) return [];
+  const beans = o.items.filter(it => it.type === 'bean');
+  const others = o.items.filter(it => it.type !== 'bean');
+  return [...beans, ...others];
+}
+
+function orderItemsLines(o) {
+  return sortedOrderItems(o).map(it => {
+    const name = escapeHtml(it.name);
+    const blendName = it.customBlendName ? `<span class="order-line-meta">${escapeHtml(it.customBlendName)}</span>` : '';
+    const variant = it.variant ? `<span class="order-line-meta">${escapeHtml(it.variant)}</span>` : '';
+    const quantity = Number(it.quantity) > 1 ? `<span class="order-line-meta">×${escapeHtml(it.quantity)}</span>` : '';
+    const grind = (it.type === 'bean' && it.grind === 'ground') ? `<span class="grind-tag">挽き豆</span>` : '';
+    const amount = Number(it.amount) > 0 ? formatYen(it.amount) : '<span class="amount-pending">価格未登録</span>';
+    return `
+      <div class="order-line">
+        <div class="order-line-name">${name}${blendName}${variant}${quantity}${grind}</div>
+        <div class="order-line-amount">${amount}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderOrders() {
+  const active = state.orders.filter(o => o.status !== 'done' && o.status !== 'canceled' && o.status !== 'invoiced');
+  const list = $('orders-list');
+  if (active.length === 0) {
+    list.innerHTML = '<p class="empty">現在の注文はありません<br>＋ボタンから登録してね</p>';
+    return;
+  }
+  list.innerHTML = active.map((o) => `
+    <div class="card cyan">
+      <div class="card-head">
+        <p class="card-title">${escapeHtml(o.shop)}</p>
+        ${orderTotalAmount(o) > 0 ? `<p class="card-price">${formatYen(orderTotalAmount(o))}</p>` : ''}
+      </div>
+      ${orderHasPendingAmount(o) ? '<p class="card-meta"><span class="badge badge-variable">価格未登録あり</span></p>' : ''}
+      <div style="margin: 8px 0;">${orderItemsLines(o)}</div>
+      ${o.orderSource ? `<p class="card-meta"><span class="meta-label">注文経路</span>${escapeHtml(orderSourceLabel(o.orderSource))}${o.receptionSource ? ' / ' + escapeHtml(o.receptionSource) : ''}</p>` : ''}
+      <p class="card-meta"><span class="meta-label">お渡し・お届け</span>${escapeHtml(o.delivery || '日付未定')} ・ ${escapeHtml(o.place || '')}</p>
+      ${o.paymentMethod ? `<p class="card-meta"><span class="meta-label">支払い</span>${escapeHtml(o.paymentMethod)}</p>` : ''}
+      ${o.staff ? `<p class="card-meta"><span class="meta-label">担当</span>${escapeHtml(o.staff)}</p>` : ''}
+      ${o.memo ? `<div class="card-memo-wrap"><p class="card-memo-label">MEMO</p><p class="card-memo">${escapeHtml(o.memo)}</p></div>` : ''}
+      <div class="card-actions">
+        <button class="btn-small green o-done" data-id="${o.id}">受け渡し完了</button>
+        <button class="btn-small cyan o-delivery" data-id="${o.id}">納品書発行</button>
+        <button class="btn-small yellow o-duplicate" data-id="${o.id}">複製</button>
+        <button class="btn-small o-edit" data-id="${o.id}">編集</button>
+        <button class="btn-small danger o-del" data-id="${o.id}">削除・取消</button>
+      </div>
+    </div>
+  `).join('');
+
+  document.querySelectorAll('.o-done').forEach(b => b.addEventListener('click', () => completeOrder(b.dataset.id)));
+  document.querySelectorAll('.o-delivery').forEach(b => b.addEventListener('click', () => printDeliveryNote(b.dataset.id)));
+  document.querySelectorAll('.o-duplicate').forEach(b => b.addEventListener('click', () => duplicateOrder(b.dataset.id)));
+  document.querySelectorAll('.o-edit').forEach(b => b.addEventListener('click', () => openOrderModal(b.dataset.id)));
+  document.querySelectorAll('.o-del').forEach(b => b.addEventListener('click', () => cancelOrder(b.dataset.id)));
+}
+
+function orderSourceLabel(source) {
+  const map = {
+    customer: 'お客さん注文',
+    staff: 'スタッフ入力',
+    reception: '店頭受付'
+  };
+  return map[source] || source || '';
+}
+
+function renderShops() {
+  const list = $('shops-list');
+  if (state.shops.length === 0) {
+    list.innerHTML = '<p class="empty">登録された顧客はありません</p>';
+    return;
+  }
+  list.innerHTML = state.shops.map((s) => `
+    <div class="card yellow">
+      <div class="card-head">
+        <p class="card-title">${escapeHtml(s.name)}</p>
+        ${shopStatusBadge(s.status)}
+      </div>
+      ${s.person ? `<p class="card-meta"><span class="meta-label">担当者</span>${escapeHtml(s.person)}</p>` : ''}
+      ${s.email ? `<p class="card-meta"><span class="meta-label">メール</span>${escapeHtml(s.email)}</p>` : ''}
+      ${s.defaultPaymentMethod ? `<p class="card-meta"><span class="meta-label">支払い</span>${escapeHtml(s.defaultPaymentMethod)}</p>` : ''}
+      ${s.lastWeeklyMailSentAt ? `<p class="card-meta"><span class="meta-label">案内メール</span>${escapeHtml(s.lastWeeklyMailSentAt)}</p>` : ''}
+      ${s.introMailSentAt ? `<p class="card-meta"><span class="meta-label">導入メール</span>${escapeHtml(s.introMailSentAt)}</p>` : '<p class="card-meta"><span class="meta-label">導入メール</span>未送信</p>'}
+      <div class="card-actions">
+        <button class="btn-small s-edit" data-id="${s.id}">編集</button>
+        <button class="btn-small s-detail" data-id="${s.id}">詳細</button>
+        <button class="btn-small danger s-del" data-id="${s.id}">削除</button>
+      </div>
+    </div>
+  `).join('');
+
+  document.querySelectorAll('.s-edit').forEach(b => b.addEventListener('click', () => openShopModal(b.dataset.id)));
+  document.querySelectorAll('.s-detail').forEach(b => b.addEventListener('click', () => openShopDetail(b.dataset.id)));
+  document.querySelectorAll('.s-del').forEach(b => b.addEventListener('click', () => deleteShop(b.dataset.id)));
+}
+
+function renderItems() {
+  const list = $('items-list');
+  if (state.items.length === 0) {
+    list.innerHTML = '<p class="empty">登録された商品はありません<br>豆もコーヒーバッグもここに登録</p>';
+    return;
+  }
+  // 豆を先、その他商品を後ろに
+  const sorted = [...state.items].sort((a, b) => {
+    if (a.type === 'bean' && b.type !== 'bean') return -1;
+    if (a.type !== 'bean' && b.type === 'bean') return 1;
+    return 0;
+  });
+  list.innerHTML = sorted.map((it, idx) => {
+    const wholesaleVariants = variantsForItem(it, 'wholesale').map(v =>
+      `<span class="variant-badge">${escapeHtml(v.size)} → ${escapeHtml(formatVariantPrice(v))}</span>`
+    ).join('');
+    const shopVariants = variantsForItem(it, 'shop').map(v =>
+      `<span class="variant-badge">${escapeHtml(v.size)} → ${escapeHtml(formatVariantPrice(v))}</span>`
+    ).join('');
+    const receptionVariants = (it.receptionVariants || []).map(v =>
+      `<span class="variant-badge">${escapeHtml(v.size)} → ${escapeHtml(formatVariantPrice(v))}</span>`
+    ).join('');
+    const typeLabel = it.type === 'bean' ? '豆' : 'その他';
+    const typeBadgeCls = it.type === 'bean' ? 'badge-bean' : 'badge-item';
+    const uses = [
+      it.useWholesale !== false && String(it.useWholesale).toLowerCase() !== 'false' ? '卸用' : '',
+      it.useShop === true || String(it.useShop).toLowerCase() === 'true' ? '店舗提供用' : '',
+      it.useEvent === true || String(it.useEvent).toLowerCase() === 'true' ? 'イベント用' : ''
+    ].filter(Boolean).join(' / ');
+    const isHidden = String(it.hidden || '').toLowerCase() === 'true';
+    const visibilityLabel = String(it.visibility || 'all') === 'selected'
+      ? '選んだ顧客のみ'
+      : '全卸先';
+    return `
+      <div class="card red">
+        <div class="card-head">
+          <p class="card-title">${escapeHtml(it.name)}</p>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+            <span class="badge ${typeBadgeCls}">${isHidden ? '非表示' : typeLabel}</span>
+          </div>
+        </div>
+        ${productImageHtml(it.imageUrl, it.name)}
+        ${uses ? `<p class="card-meta"><span class="meta-label">用途</span>${escapeHtml(uses)}</p>` : ''}
+        <p class="card-meta"><span class="meta-label">表示</span>${isHidden ? '注文ページでは非表示' : '注文ページに表示'} / ${escapeHtml(visibilityLabel)}</p>
+        <div style="margin: 8px 0;">
+          <p class="card-memo-label">卸用</p>
+          ${wholesaleVariants || '<span style="font-size:12px; color: var(--text-secondary);">卸用バリエーション未登録</span>'}
+        </div>
+        <div style="margin: 8px 0;">
+          <p class="card-memo-label">店舗用</p>
+          ${shopVariants || '<span style="font-size:12px; color: var(--text-secondary);">店舗用バリエーション未登録</span>'}
+        </div>
+        <div style="margin: 8px 0;">
+          <p class="card-memo-label">店頭受付用</p>
+          ${receptionVariants || '<span style="font-size:12px; color: var(--text-secondary);">店頭受付用バリエーション未登録</span>'}
+        </div>
+        ${it.memo ? `<div class="card-memo-wrap"><p class="card-memo-label">MEMO</p><p class="card-memo">${escapeHtml(it.memo)}</p></div>` : ''}
+        <div class="card-actions">
+          <button class="btn-small i-edit" data-id="${it.id}">編集</button>
+          <button class="btn-small danger i-del" data-id="${it.id}">削除</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  document.querySelectorAll('.i-edit').forEach(b => b.addEventListener('click', () => openItemModal(b.dataset.id)));
+  document.querySelectorAll('.i-del').forEach(b => b.addEventListener('click', () => deleteItem(b.dataset.id)));
+}
+
+// 履歴の並び順（'completed'=受け取り日順 / 'order'=注文日順）。初期は受け取り日順
+let historySortMode = 'completed';
+
+function setHistorySort(mode) {
+  historySortMode = mode === 'order' ? 'order' : 'completed';
+  renderHistory();
+}
+
+function renderHistory() {
+  // 並び替えボタンの見た目を現在のモードに合わせる
+  document.querySelectorAll('.history-sort-btn').forEach(b => {
+    b.classList.toggle('cyan', b.dataset.sort === historySortMode);
+    b.onclick = () => setHistorySort(b.dataset.sort);
+  });
+
+  // 注文日順は createdAt（無ければ date）、受け取り日順は completedAt で新しい順に並べる
+  const orderDateKey = o => o.createdAt || o.date || '';
+  const done = state.orders.filter(o => o.status === 'done')
+    .sort((a, b) => historySortMode === 'order'
+      ? String(orderDateKey(b)).localeCompare(String(orderDateKey(a)))
+      : (b.completedAt || '').localeCompare(a.completedAt || ''));
+  const list = $('history-list');
+  if (done.length === 0) {
+    list.innerHTML = '<p class="empty">受け渡し済みの履歴はありません</p>';
+    return;
+  }
+  // 描画が重くならないよう直近50件のみ表示（全データはスプレッドシートに残っている）
+  const shown = done.slice(0, 50);
+  list.innerHTML = shown.map(o => `
+    <div class="card">
+      <div class="card-head">
+        <p class="card-title" style="font-size:16px;">${escapeHtml(o.shop)}</p>
+        <span style="font-size:12px; color: var(--text-tertiary);">${historySortMode === 'order'
+          ? '注文 ' + String(orderDateKey(o)).slice(0,10)
+          : '受取 ' + (o.completedAt || '').slice(0,10)}</span>
+      </div>
+      <div style="margin: 6px 0;">${orderItemsLines(o)}</div>
+      ${orderTotalAmount(o) > 0 ? `<p style="font-size:15px; font-weight:700; margin:6px 0;">合計 ${formatYen(orderTotalAmount(o))}</p>` : ''}
+      <p class="card-meta"><span class="meta-label">場所</span>${escapeHtml(o.place || '')}</p>
+      ${o.completedBy ? `<p class="card-meta"><span class="meta-label">受け渡し担当</span>${escapeHtml(o.completedBy)}</p>` : ''}
+      <div class="card-actions">
+        <button class="btn-small yellow h-restore" data-id="${o.id}">注文へ戻す</button>
+        <button class="btn-small cyan h-delivery" data-id="${o.id}">納品書発行</button>
+        <button class="btn-small green h-invoiced" data-id="${o.id}">納品書完了</button>
+        <button class="btn-small yellow h-duplicate" data-id="${o.id}">複製</button>
+        <button class="btn-small danger h-del" data-id="${o.id}">削除・取消</button>
+      </div>
+    </div>
+  `).join('') + (done.length > 50 ? `<p class="empty">直近50件を表示しています（全${done.length}件の記録はスプレッドシートで確認できます）</p>` : '');
+
+  document.querySelectorAll('.h-restore').forEach(b => b.addEventListener('click', () => restoreOrder(b.dataset.id)));
+  document.querySelectorAll('.h-delivery').forEach(b => b.addEventListener('click', () => printDeliveryNote(b.dataset.id)));
+  document.querySelectorAll('.h-invoiced').forEach(b => b.addEventListener('click', () => markInvoiced(b.dataset.id)));
+  document.querySelectorAll('.h-duplicate').forEach(b => b.addEventListener('click', () => duplicateOrder(b.dataset.id)));
+  document.querySelectorAll('.h-del').forEach(b => b.addEventListener('click', () => cancelOrder(b.dataset.id)));
+}
+
+function renderCanceled() {
+  const canceled = state.orders.filter(o => o.status === 'canceled')
+    .sort((a, b) => (b.canceledAt || '').localeCompare(a.canceledAt || ''));
+  const list = $('canceled-list');
+  if (!list) return;
+  if (canceled.length === 0) {
+    list.innerHTML = '<p class="empty">削除・取消した注文はありません</p>';
+    return;
+  }
+  list.innerHTML = canceled.map(o => `
+    <div class="card">
+      <div class="card-head">
+        <p class="card-title" style="font-size:16px;">${escapeHtml(o.shop)}</p>
+        <span style="font-size:12px; color: var(--text-tertiary);">${escapeHtml((o.canceledAt || '').slice(0,10))}</span>
+      </div>
+      <div style="margin: 6px 0;">${orderItemsLines(o)}</div>
+      ${o.memo ? `<div class="card-memo-wrap"><p class="card-memo-label">MEMO</p><p class="card-memo">${escapeHtml(o.memo)}</p></div>` : ''}
+      <div class="card-actions">
+        <button class="btn-small yellow c-restore-order" data-id="${o.id}">注文へ戻す</button>
+        ${o.canceledFromStatus === 'done' ? `<button class="btn-small c-restore-history" data-id="${o.id}">履歴へ戻す</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  document.querySelectorAll('.c-restore-order').forEach(b => b.addEventListener('click', () => restoreCanceledOrder(b.dataset.id, 'received')));
+  document.querySelectorAll('.c-restore-history').forEach(b => b.addEventListener('click', () => restoreCanceledOrder(b.dataset.id, 'done')));
+}
+
+// ============================================================
+// 納品書完了タブ（25件ごとのページング）
+// ============================================================
+let invoicedPage = 1;
+const INVOICED_PER_PAGE = 25;
+
+function renderInvoiced() {
+  const list = $('invoiced-list');
+  const pager = $('invoiced-pager');
+  if (!list) return;
+  // 納品書完了にした順（invoicedAt）→ 無ければ受取日時で新しい順
+  const invoiced = state.orders.filter(o => o.status === 'invoiced')
+    .sort((a, b) => String(b.invoicedAt || b.completedAt || '').localeCompare(String(a.invoicedAt || a.completedAt || '')));
+
+  if (invoiced.length === 0) {
+    list.innerHTML = '<p class="empty">納品書完了の注文はありません</p>';
+    if (pager) pager.innerHTML = '';
+    return;
   }
 
-  if (key) {
-    goToAdmin(key);
-  } else {
-    showKeyForm();
+  const totalPages = Math.ceil(invoiced.length / INVOICED_PER_PAGE);
+  if (invoicedPage > totalPages) invoicedPage = totalPages;
+  if (invoicedPage < 1) invoicedPage = 1;
+  const start = (invoicedPage - 1) * INVOICED_PER_PAGE;
+  const shown = invoiced.slice(start, start + INVOICED_PER_PAGE);
+
+  list.innerHTML = shown.map(o => `
+    <div class="card green">
+      <div class="card-head">
+        <p class="card-title" style="font-size:16px;">${escapeHtml(o.shop)}</p>
+        <span style="font-size:12px; color: var(--text-tertiary);">受取 ${(o.completedAt || '').slice(0,10)}</span>
+      </div>
+      <div style="margin: 6px 0;">${orderItemsLines(o)}</div>
+      ${orderTotalAmount(o) > 0 ? `<p style="font-size:15px; font-weight:700; margin:6px 0;">合計 ${formatYen(orderTotalAmount(o))}</p>` : ''}
+      <p class="card-meta"><span class="meta-label">場所</span>${escapeHtml(o.place || '')}</p>
+      ${o.completedBy ? `<p class="card-meta"><span class="meta-label">受け渡し担当</span>${escapeHtml(o.completedBy)}</p>` : ''}
+      <div class="card-actions">
+        <button class="btn-small cyan iv-delivery" data-id="${o.id}">納品書発行</button>
+        <button class="btn-small yellow iv-restore" data-id="${o.id}">受取完了へ戻す</button>
+      </div>
+    </div>
+  `).join('');
+
+  // ページャー（1, 2, 3 …）
+  let pagerHtml = '';
+  if (totalPages > 1) {
+    pagerHtml += `<button class="btn-small iv-page" data-page="${invoicedPage - 1}" ${invoicedPage === 1 ? 'disabled style="opacity:.4;"' : ''}>‹ 前</button>`;
+    for (let p = 1; p <= totalPages; p++) {
+      pagerHtml += `<button class="btn-small iv-page ${p === invoicedPage ? 'cyan' : ''}" data-page="${p}">${p}</button>`;
+    }
+    pagerHtml += `<button class="btn-small iv-page" data-page="${invoicedPage + 1}" ${invoicedPage === totalPages ? 'disabled style="opacity:.4;"' : ''}>次 ›</button>`;
   }
+  pager.innerHTML = pagerHtml +
+    `<p class="empty" style="width:100%; padding:8px 0; margin:0;">全${invoiced.length}件 ／ ${totalPages}ページ中 ${invoicedPage}ページ目</p>`;
+
+  document.querySelectorAll('.iv-delivery').forEach(b => b.addEventListener('click', () => printDeliveryNote(b.dataset.id)));
+  document.querySelectorAll('.iv-restore').forEach(b => b.addEventListener('click', () => restoreInvoicedToReceived(b.dataset.id)));
+  document.querySelectorAll('.iv-page').forEach(b => b.addEventListener('click', () => {
+    if (b.disabled) return;
+    const p = Number(b.dataset.page);
+    if (!p) return;
+    invoicedPage = p;
+    renderInvoiced();
+    const panel = $('tab-invoiced');
+    if (panel) window.scrollTo({ top: Math.max(0, panel.offsetTop - 10), behavior: 'smooth' });
+  }));
+}
+
+async function markInvoiced(id) {
+  const idx = state.orders.findIndex(o => o.id === id);
+  if (idx === -1) return;
+  state.orders[idx].status = 'invoiced';
+  state.orders[idx].invoicedAt = new Date().toISOString();
+  saveCache();
+  renderAll();
+  toast('納品書完了へ移動しました');
+  if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    await sendOrQueue('updateOrder', state.orders[idx]);
+  }
+}
+
+async function restoreInvoicedToReceived(id) {
+  if (!confirm('この注文を「受取完了」に戻しますか？')) return;
+  const idx = state.orders.findIndex(o => o.id === id);
+  if (idx === -1) return;
+  state.orders[idx].status = 'done';
+  state.orders[idx].invoicedAt = '';
+  saveCache();
+  renderAll();
+  toast('受取完了へ戻しました');
+  if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    await sendOrQueue('updateOrder', state.orders[idx]);
+  }
+}
+
+function renderAll() {
+  renderOrders();
+  renderShops();
+  renderItems();
+  renderHistory();
+  renderInvoiced();
+  renderCanceled();
+  renderPlanning();
+  renderNoticePreview();
+  renderPriceListPreview();
+}
+
+// ============================================================
+// 焙煎計画
+// ============================================================
+let planningSelected = new Set();
+
+function parseGrams(variant) {
+  if (!variant) return 0;
+  const s = String(variant).trim().toLowerCase();
+  // kg優先
+  const kgMatch = s.match(/(\d+(?:\.\d+)?)\s*kg/);
+  if (kgMatch) return parseFloat(kgMatch[1]) * 1000;
+  const gMatch = s.match(/(\d+(?:\.\d+)?)\s*g/);
+  if (gMatch) return parseFloat(gMatch[1]);
+  return 0;
+}
+
+function formatGrams(g) {
+  if (!g) return '0g';
+  if (g >= 1000) {
+    const kg = g / 1000;
+    const rounded = Math.round(kg * 100) / 100;
+    return rounded.toLocaleString() + 'kg';
+  }
+  return Math.round(g).toLocaleString() + 'g';
+}
+
+function getPlanningTargetOrders() {
+  const active = state.orders.filter(o => o.status !== 'done' && o.status !== 'canceled' && o.status !== 'invoiced');
+  const from = $('planning-from') ? $('planning-from').value : '';
+  const to = $('planning-to') ? $('planning-to').value : '';
+  return active.filter(o => {
+    if (!from && !to) return true;
+    if (!o.delivery) return false; // 期間フィルター有効時、日付未定は除外
+    if (from && o.delivery < from) return false;
+    if (to && o.delivery > to) return false;
+    return true;
+  });
+}
+
+function renderPlanning() {
+  const listEl = $('planning-orders-list');
+  if (!listEl) return;
+  const filtered = getPlanningTargetOrders();
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = '<p class="empty">対象期間に注文がありません</p>';
+    renderPlanningResult();
+    return;
+  }
+  // 受け渡し予定日順にソート
+  const sorted = [...filtered].sort((a, b) => (a.delivery || '9999').localeCompare(b.delivery || '9999'));
+
+  listEl.innerHTML = sorted.map(o => {
+    const isChecked = planningSelected.has(o.id);
+    const items = sortedOrderItems(o).map(it => {
+      const grind = (it.type === 'bean' && it.grind === 'ground') ? '（挽き豆）' : '';
+      const variant = it.variant ? ' ' + it.variant : '';
+      const quantity = Number(it.quantity) > 1 ? ' ×' + it.quantity : '';
+      return escapeHtml(it.name) + escapeHtml(variant) + grind + escapeHtml(quantity);
+    }).join('、');
+    return `
+      <label class="planning-item ${isChecked ? 'selected' : ''}" data-id="${o.id}">
+        <input type="checkbox" class="planning-check" data-id="${o.id}" ${isChecked ? 'checked' : ''} />
+        <div class="planning-item-body">
+          <p class="planning-item-shop">${escapeHtml(o.shop)}</p>
+          <p class="planning-item-meta">お渡し・お届け: ${escapeHtml(o.delivery || '日付未定')}</p>
+          <p class="planning-item-items">${items}</p>
+        </div>
+      </label>
+    `;
+  }).join('');
+
+  document.querySelectorAll('.planning-check').forEach(c => {
+    c.addEventListener('change', (e) => {
+      e.stopPropagation();
+      if (c.checked) planningSelected.add(c.dataset.id);
+      else planningSelected.delete(c.dataset.id);
+      renderPlanning();
+    });
+  });
+
+  renderPlanningResult();
+}
+
+function renderPlanningResult() {
+  const resultEl = $('planning-result');
+  if (!resultEl) return;
+  const selected = state.orders.filter(o => planningSelected.has(o.id));
+
+  if (selected.length === 0) {
+    resultEl.innerHTML = '<div class="planning-result"><p style="font-size: 13px; color: var(--text-secondary); margin: 0; text-align: center; padding: 6px 0;">注文にチェックを入れると集計が表示されます</p></div>';
+    return;
+  }
+
+  // 商品ごとに集計
+  const agg = {}; // {商品名: {whole, ground, isBean, unparseable}}
+
+  selected.forEach(order => {
+    (order.items || []).forEach(item => {
+      const key = item.name;
+      if (!agg[key]) agg[key] = { whole: 0, ground: 0, isBean: item.type === 'bean', unparseable: [] };
+
+      const quantity = Math.max(1, Number(item.quantity) || 1);
+      const grams = parseGrams(item.variant) * quantity;
+      if (grams === 0) {
+        // gでない単位（例：5個入）はそのまま記録
+        agg[key].unparseable.push((item.variant || '?') + (quantity > 1 ? ' ×' + quantity : '') + (item.grind === 'ground' ? '（挽き豆）' : ''));
+        return;
+      }
+      if (item.type === 'bean' && item.grind === 'ground') {
+        agg[key].ground += grams;
+      } else {
+        agg[key].whole += grams;
+      }
+    });
+  });
+
+  const names = Object.keys(agg);
+  names.sort((a, b) => {
+    if (agg[a].isBean && !agg[b].isBean) return -1;
+    if (!agg[a].isBean && agg[b].isBean) return 1;
+    return a.localeCompare(b);
+  });
+
+  let beanTotal = 0;
+  let otherTotal = 0;
+
+  const makePlanningCard = (name) => {
+    const v = agg[name];
+    const total = v.whole + v.ground;
+    if (v.isBean) beanTotal += total;
+    else otherTotal += total;
+    const unparseStr = v.unparseable.length > 0 
+      ? `<p class="planning-result-line">その他 <span>${escapeHtml(v.unparseable.join('、'))}</span></p>` 
+      : '';
+
+    if (v.isBean) {
+      return `
+        <div class="planning-result-card">
+          <p class="planning-result-name">${escapeHtml(name)}</p>
+          ${v.whole > 0 ? `<p class="planning-result-line">豆のまま <span>${formatGrams(v.whole)}</span></p>` : ''}
+          ${v.ground > 0 ? `<p class="planning-result-line">挽き豆 <span>${formatGrams(v.ground)}</span></p>` : ''}
+          ${unparseStr}
+          ${total > 0 ? `<p class="planning-result-total">合計 <span>${formatGrams(total)}</span></p>` : ''}
+        </div>
+      `;
+    } else {
+      return `
+        <div class="planning-result-card">
+          <p class="planning-result-name">${escapeHtml(name)}</p>
+          ${total > 0 ? `<p class="planning-result-line">数量 <span>${formatGrams(total)}</span></p>` : ''}
+          ${unparseStr}
+        </div>
+      `;
+    }
+  };
+
+  const beanNames = names.filter(name => agg[name].isBean);
+  const otherNames = names.filter(name => !agg[name].isBean);
+  const beanCards = beanNames.map(makePlanningCard).join('');
+  const otherCards = otherNames.map(makePlanningCard).join('');
+  const grandTotal = beanTotal + otherTotal;
+
+  resultEl.innerHTML = `
+    <div class="planning-result">
+      <p class="planning-result-title">集計結果（${selected.length}件の注文）</p>
+      ${beanCards ? `
+        <div class="planning-result-section">
+          <p class="planning-result-section-title bean">
+            <span>焙煎豆</span>
+            <span class="planning-result-section-count">${beanNames.length}商品 / ${formatGrams(beanTotal)}</span>
+          </p>
+          ${beanCards}
+        </div>
+      ` : ''}
+      ${otherCards ? `
+        <div class="planning-result-section">
+          <p class="planning-result-section-title other">
+            <span>その他の商品</span>
+            <span class="planning-result-section-count">${otherNames.length}商品${otherTotal > 0 ? ' / ' + formatGrams(otherTotal) : ''}</span>
+          </p>
+          ${otherCards}
+        </div>
+      ` : ''}
+      ${grandTotal > 0 ? `<div class="planning-grand-total"><span>全体合計</span><span>${formatGrams(grandTotal)}</span></div>` : ''}
+    </div>
+  `;
+}
+
+// 印刷モードの後片付け。
+// iPad/iPhoneのSafariは window.print() がすぐ戻ってくるため、タイマーで消すと
+// 印刷プレビュー生成前にモードが解除されてしまい、画面全体が印刷されてしまう。
+// そのためタイマーは使わず、印刷終了イベント＋次回印刷時のリセットで掃除する。
+// （印刷用クラスは @media print 内でしか効かないので、画面表示には影響しない）
+function clearPrintMode() {
+  document.body.classList.remove('print-planning');
+  document.body.classList.remove('print-delivery');
+  $('delivery-note-print').innerHTML = '';
+}
+window.addEventListener('afterprint', clearPrintMode);
+if (window.matchMedia) {
+  try {
+    window.matchMedia('print').addEventListener('change', mql => {
+      if (!mql.matches) clearPrintMode();
+    });
+  } catch (e) {}
+}
+
+function printPlanningResult() {
+  if (planningSelected.size === 0) {
+    alert('PDF/印刷する注文にチェックを入れてください');
+    return;
+  }
+  clearPrintMode();
+  document.body.classList.add('print-planning');
+  window.print();
+}
+
+function deliveryItemDescription(item) {
+  return [
+    item.name,
+    item.customBlendName,
+    item.variant,
+    item.type === 'bean' ? (item.grind === 'ground' ? '挽き豆' : '豆のまま') : ''
+  ].filter(Boolean).join(' / ');
+}
+
+function deliveryNoteRows(order) {
+  return sortedOrderItems(order).map((item, idx) => {
+    const qty = Number(item.quantity) > 1 ? item.quantity : 1;
+    const amount = Number(item.amount) || 0;
+    return `
+      <tr>
+        <td class="num">${idx + 1}</td>
+        <td>${escapeHtml(deliveryItemDescription(item))}</td>
+        <td class="num">${escapeHtml(qty)}</td>
+        <td class="num">${amount ? formatYen(amount) : '価格未登録'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function deliveryNoteHtml(order) {
+  const issuedAt = new Date();
+  const issuedDate = `${issuedAt.getFullYear()}-${String(issuedAt.getMonth() + 1).padStart(2, '0')}-${String(issuedAt.getDate()).padStart(2, '0')}`;
+  const total = orderTotalAmount(order);
+  const hasUnsetAmount = (order.items || []).some(item => !(Number(item.amount) > 0));
+  return `
+    <section class="delivery-note">
+      <div class="delivery-note-head">
+        <div>
+          <h1 class="delivery-note-title">納品書</h1>
+          <p class="delivery-note-shop">${escapeHtml(order.shop || '')} 御中</p>
+        </div>
+        <div>
+          <p class="delivery-note-company">IMAGINE.COFFEE</p>
+          <p class="delivery-note-meta">〒690-0006 島根県松江市伊勢宮町503-1</p>
+          <p class="delivery-note-meta">TEL 0852-25-9277</p>
+          <p class="delivery-note-meta">発行日 ${escapeHtml(issuedDate)}</p>
+          ${order.id ? `<p class="delivery-note-meta">注文ID ${escapeHtml(order.id)}</p>` : ''}
+        </div>
+      </div>
+      <p style="font-size:13px; margin: 0 0 4px;">下記の通り納品いたします。</p>
+      <p style="font-size:13px; margin: 0 0 14px;">
+        希望のお渡し・お届け日：${escapeHtml(order.delivery || '日付未定')}　
+        受け取り方法：${escapeHtml(order.place || '')}
+      </p>
+      <table class="delivery-note-table">
+        <thead>
+          <tr>
+            <th style="width:44px;">No.</th>
+            <th>品名</th>
+            <th style="width:76px;">数量</th>
+            <th style="width:120px;">金額</th>
+          </tr>
+        </thead>
+        <tbody>${deliveryNoteRows(order)}</tbody>
+      </table>
+      ${total > 0 ? `<div class="delivery-note-total"><span>合計</span><span>${formatYen(total)}${hasUnsetAmount ? '（価格未登録あり）' : ''}</span></div>` : '<div class="delivery-note-total"><span>合計</span><span>価格未登録</span></div>'}
+      ${order.paymentMethod ? `<p style="font-size:13px; margin: 16px 0 0;">支払い方法：${escapeHtml(order.paymentMethod)}</p>` : ''}
+      ${order.memo ? `<div class="delivery-note-memo">備考：\n${escapeHtml(order.memo)}</div>` : ''}
+    </section>
+  `;
+}
+
+function printDeliveryNote(orderId) {
+  const order = state.orders.find(o => o.id === orderId);
+  if (!order) {
+    alert('注文データが見つかりません');
+    return;
+  }
+  clearPrintMode();
+  $('delivery-note-print').innerHTML = deliveryNoteHtml(order);
+  document.body.classList.add('print-delivery');
+  window.print();
+}
+
+// ============================================================
+// モーダル
+// ============================================================
+function openModal(title, bodyHtml) {
+  $('modal-title').textContent = title;
+  $('modal-body').innerHTML = bodyHtml;
+  $('modal-overlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal() {
+  $('modal-overlay').classList.remove('show');
+  document.body.style.overflow = '';
+  $('modal-body').innerHTML = '';
+}
+$('modal-close').addEventListener('click', closeModal);
+// 枠外タップで閉じる機能は削除（×ボタンのみで閉じる）
+
+// ============================================================
+// 注文モーダル
+// ============================================================
+let currentOrderItems = [];
+
+function orderItemHtml(item, idx) {
+  const beanItems = state.items.filter(x => x.type === 'bean' && (isShopItem(x) || x.id === item.itemId));
+  const otherItems = state.items.filter(x => x.type !== 'bean' && (isShopItem(x) || x.id === item.itemId));
+  let itemOptions = '';
+  if (beanItems.length > 0) {
+    itemOptions += '<optgroup label="豆">' +
+      beanItems.map(x => `<option value="${escapeHtml(x.id)}" ${item.itemId === x.id ? 'selected' : ''}>${escapeHtml(x.name)}</option>`).join('') +
+      '</optgroup>';
+  }
+  if (otherItems.length > 0) {
+    itemOptions += '<optgroup label="その他商品">' +
+      otherItems.map(x => `<option value="${escapeHtml(x.id)}" ${item.itemId === x.id ? 'selected' : ''}>${escapeHtml(x.name)}</option>`).join('') +
+      '</optgroup>';
+  }
+
+  let variantSection = '';
+
+  if (item.itemId) {
+    const selectedItem = state.items.find(x => x.id === item.itemId);
+    if (selectedItem) {
+      const variants = variantsForItem(selectedItem, 'shop');
+      if (variants.length > 0) {
+        const shopOptions = variants.map(v =>
+          `<option value="${escapeHtml(v.size)}" ${item.variant === v.size ? 'selected' : ''}>${escapeHtml(v.size)}${Number(v.price) > 0 ? ' / ' + formatYen(v.price) : ''}</option>`
+        ).join('');
+        variantSection = `
+          <div class="field" style="margin-bottom:8px;">
+            <select class="oi-variant-select" data-idx="${idx}">
+              <option value="">容量・種類を選択</option>
+              ${shopOptions}
+            </select>
+          </div>
+        `;
+      }
+    }
+  }
+
+  return `
+    <div class="order-item" data-idx="${idx}">
+      <div class="order-item-head">
+        <span class="order-item-num">#${idx + 1}</span>
+        ${currentOrderItems.length > 1 ? `<button class="order-item-del oi-del" data-idx="${idx}">✕</button>` : ''}
+      </div>
+      <div class="field" style="margin-bottom:8px;">
+        <select class="oi-item-select" data-idx="${idx}">
+          <option value="">商品を選択</option>
+          ${itemOptions}
+        </select>
+      </div>
+      ${variantSection}
+      <div class="field" style="margin-bottom:8px;">
+        <label class="field-label" style="font-size:12px; margin-bottom:4px;">納品書用の金額</label>
+        <input type="number" class="oi-amount" data-idx="${idx}" value="${escapeHtml(item.amount || '')}" min="0" inputmode="numeric" placeholder="価格を入力" />
+      </div>
+    </div>
+  `;
+}
+
+function renderOrderItems() {
+  const container = $('oi-container');
+  if (!container) return;
+  container.innerHTML = currentOrderItems.map((it, idx) => orderItemHtml(it, idx)).join('');
+  attachOrderItemHandlers();
+  saveDraft();
+}
+
+function attachOrderItemHandlers() {
+  document.querySelectorAll('.oi-item-select').forEach(el => {
+    el.addEventListener('change', () => {
+      const idx = +el.dataset.idx;
+      const item = state.items.find(x => x.id === el.value);
+      currentOrderItems[idx].itemId = el.value;
+      currentOrderItems[idx].name = item ? item.name : '';
+      currentOrderItems[idx].type = item ? item.type : 'bean';
+      currentOrderItems[idx].variant = '';
+      currentOrderItems[idx].amount = '';
+      renderOrderItems();
+    });
+  });
+  document.querySelectorAll('.oi-variant-select').forEach(el => {
+    el.addEventListener('change', () => {
+      const idx = +el.dataset.idx;
+      const row = currentOrderItems[idx];
+      row.variant = el.value;
+      const item = state.items.find(x => x.id === row.itemId);
+      const price = variantPriceForItem(item, 'shop', row.variant);
+      row.amount = price > 0 ? price : '';
+      updateAmountDisplay(idx);
+      saveDraft();
+    });
+  });
+  document.querySelectorAll('.oi-amount').forEach(el => {
+    el.addEventListener('input', () => {
+      currentOrderItems[+el.dataset.idx].amount = el.value;
+    });
+  });
+  document.querySelectorAll('.oi-del').forEach(el => {
+    el.addEventListener('click', () => {
+      currentOrderItems.splice(+el.dataset.idx, 1);
+      if (currentOrderItems.length === 0) {
+        currentOrderItems.push({ mode: 'master', itemId: '', variant: '', quantity: 1, type: 'bean', grind: 'whole' });
+      }
+      renderOrderItems();
+    });
+  });
+}
+
+function updateAmountDisplay(idx) {
+  const el = document.querySelector(`.oi-amount[data-idx="${idx}"]`);
+  if (el && !currentOrderItems[idx].amountManual) {
+    el.value = currentOrderItems[idx].amount || '';
+  }
+}
+
+function openOrderModal(orderId) {
+  let editingOrder = null;
+  if (orderId) {
+    editingOrder = state.orders.find(o => o.id === orderId);
+    if (!editingOrder) return;
+    currentOrderItems = editingOrder.items ? JSON.parse(JSON.stringify(editingOrder.items)) : [];
+    currentOrderItems.forEach(it => { if (!it.mode) it.mode = it.itemId ? 'master' : 'manual'; });
+  } else {
+    const draft = loadDraft('order');
+    if (draft && draft.items && draft.items.length) {
+      if (confirm('前回の入力途中の内容があります。続きから書きますか？')) {
+        currentOrderItems = draft.items;
+      } else {
+        clearDraft('order');
+        currentOrderItems = [{ mode: 'master', itemId: '', name: '', variant: '', amount: '', type: 'bean', grind: 'whole' }];
+      }
+    } else {
+      currentOrderItems = [{ mode: 'master', itemId: '', name: '', variant: '', amount: '', type: 'bean', grind: 'whole' }];
+    }
+  }
+
+  const draft = editingOrder ? null : loadDraft('order');
+  const today = new Date().toISOString().slice(0, 10);
+  const initShop = editingOrder ? editingOrder.shop : (draft && draft.shop) || '';
+  const staffShopNames = ['伊勢宮', 'SUNAGODA'];
+  const shopOptions = staffShopNames.map(name =>
+    `<option value="${escapeHtml(name)}" ${initShop === name ? 'selected' : ''}>${escapeHtml(name)}</option>`
+  ).join('') + (initShop && staffShopNames.indexOf(initShop) === -1
+    ? `<option value="${escapeHtml(initShop)}" selected>${escapeHtml(initShop)}</option>`
+    : '');
+  const initDate = editingOrder ? (editingOrder.date || today) : (draft && draft.date) || today;
+  const initStaff = editingOrder ? (editingOrder.staff || '') : (draft && draft.staff) || '';
+  const initMemo = editingOrder ? (editingOrder.memo || '') : (draft && draft.memo) || '';
+  const initNotifySlack = editingOrder
+    ? !(editingOrder.notifySlack === false || String(editingOrder.notifySlack).toLowerCase() === 'false')
+    : true;
+
+  const body = `
+    <div class="field">
+      <label class="field-label field-required">店舗名</label>
+      <select id="o-shop"><option value="">選択してください</option>${shopOptions}</select>
+    </div>
+    <div class="field">
+      <label class="field-label">注文日</label>
+      <input type="date" id="o-date" value="${initDate}" />
+    </div>
+
+    <div style="margin: 16px 0 10px; font-size:13px; font-weight:600;">注文内容</div>
+    <div id="oi-container"></div>
+    <button class="btn-add-item" id="btn-add-item">＋ 商品を追加する</button>
+
+    <div class="field">
+      <label class="field-label">担当スタッフ</label>
+      <input type="text" id="o-staff" placeholder="なまえ" value="${escapeHtml(initStaff)}" />
+    </div>
+    <div class="field">
+      <label class="field-label">メモ</label>
+      <textarea id="o-memo" rows="2" placeholder="特記事項">${escapeHtml(initMemo)}</textarea>
+    </div>
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600;">
+        <input type="checkbox" id="o-notify-slack" ${initNotifySlack ? 'checked' : ''} style="width:auto; box-shadow:none;" />
+        Slackに共有する
+      </label>
+    </div>
+    <input type="hidden" id="o-id" value="${editingOrder ? editingOrder.id : ''}" />
+    <button class="btn-primary" id="save-order" style="margin-bottom:12px;">${editingOrder ? '更新する' : '保存する'}</button>
+  `;
+
+  openModal(editingOrder ? '注文を編集' : '新しい注文', body);
+  if (initShop) $('o-shop').value = initShop;
+  renderOrderItems();
+
+  ['o-shop', 'o-date', 'o-staff', 'o-memo'].forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('input', saveDraft);
+    if (el) el.addEventListener('change', saveDraft);
+  });
+
+  $('o-shop').addEventListener('change', saveDraft);
+
+  $('btn-add-item').addEventListener('click', () => {
+    currentOrderItems.push({ mode: 'master', itemId: '', name: '', variant: '', amount: '', type: 'bean', grind: 'whole' });
+    renderOrderItems();
+  });
+
+  $('save-order').addEventListener('click', () => saveOrder(editingOrder));
+}
+
+function saveDraft() {
+  const shop = $('o-shop'); if (!shop) return;
+  const draft = {
+    shop: $('o-shop').value,
+    date: $('o-date').value,
+    staff: $('o-staff').value,
+    memo: $('o-memo').value,
+    items: currentOrderItems
+  };
+  localStorage.setItem(STORAGE_KEYS.DRAFT_ORDER, JSON.stringify(draft));
+}
+function loadDraft(type) {
+  try {
+    if (type === 'order') return JSON.parse(localStorage.getItem(STORAGE_KEYS.DRAFT_ORDER) || 'null');
+    if (type === 'shop') return JSON.parse(localStorage.getItem(STORAGE_KEYS.DRAFT_SHOP) || 'null');
+    if (type === 'item') return JSON.parse(localStorage.getItem(STORAGE_KEYS.DRAFT_ITEM) || 'null');
+  } catch (e) { return null; }
+}
+function clearDraft(type) {
+  if (type === 'order') localStorage.removeItem(STORAGE_KEYS.DRAFT_ORDER);
+  if (type === 'shop') localStorage.removeItem(STORAGE_KEYS.DRAFT_SHOP);
+  if (type === 'item') localStorage.removeItem(STORAGE_KEYS.DRAFT_ITEM);
+}
+
+async function saveOrder(editingOrder) {
+  const shop = $('o-shop').value;
+  if (!shop) { alert('店舗名を選択してください'); return; }
+  const validItems = currentOrderItems.filter(it => it.itemId);
+  if (validItems.length === 0) { alert('少なくとも1つの商品を選択してください'); return; }
+
+  validItems.forEach(it => {
+    const m = state.items.find(x => x.id === it.itemId);
+    if (m) { it.name = m.name; it.type = m.type; }
+    if (!it.type) it.type = 'bean';
+    // 顧客注文を編集しても数量・挽き方を消さない（新規の店舗用発注は数量1のまま）
+    it.quantity = Math.max(1, Number(it.quantity) || 1);
+    it.amount = Number(it.amount) > 0 ? Number(it.amount) : '';
+  });
+  const missingVariant = validItems.find(it => {
+    const m = state.items.find(x => x.id === it.itemId);
+    return m && variantsForItem(m, 'shop').length > 0 && !String(it.variant || '').trim();
+  });
+  if (missingVariant) {
+    alert('容量・種類を選択してください');
+    return;
+  }
+
+  const order = {
+    id: editingOrder ? editingOrder.id : uid(),
+    shop,
+    items: validItems,
+    date: $('o-date').value,
+    // 編集時は元の注文情報（配送先・支払い方法・注文経路など）を保持する
+    delivery: editingOrder ? (editingOrder.delivery || '') : '',
+    place: editingOrder ? (editingOrder.place || '') : '',
+    paymentMethod: editingOrder ? (editingOrder.paymentMethod || '') : '',
+    staff: $('o-staff').value,
+    memo: $('o-memo').value,
+    status: editingOrder ? editingOrder.status : 'received',
+    createdAt: editingOrder ? editingOrder.createdAt : new Date().toISOString(),
+    completedAt: editingOrder ? editingOrder.completedAt : '',
+    completedBy: editingOrder ? editingOrder.completedBy : '',
+    orderSource: editingOrder ? (editingOrder.orderSource || 'staff') : 'staff',
+    receptionSource: editingOrder ? (editingOrder.receptionSource || '') : '',
+    customerName: editingOrder ? (editingOrder.customerName || '') : '',
+    shopId: editingOrder ? (editingOrder.shopId || '') : '',
+    canceledAt: editingOrder ? (editingOrder.canceledAt || '') : '',
+    canceledFromStatus: editingOrder ? (editingOrder.canceledFromStatus || '') : '',
+    notifySlack: $('o-notify-slack').checked
+  };
+
+  if (editingOrder) {
+    const idx = state.orders.findIndex(o => o.id === editingOrder.id);
+    if (idx !== -1) state.orders[idx] = order;
+  } else {
+    state.orders.unshift(order);
+  }
+
+  saveCache();
+  clearDraft('order');
+  closeModal();
+  renderAll();
+  toast(editingOrder ? '注文を更新しました' : '注文を登録しました');
+
+  if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    const ok = await sendOrQueue(editingOrder ? 'updateOrder' : 'addOrder', order);
+    if (ok) {
+      await syncFromServer();
+      renderAll();
+    }
+  }
+}
+
+// ============================================================
+// 店頭受付
+// ============================================================
+let currentReceptionItems = [];
+
+function receptionVariantGroups(item) {
+  if (!item) return [];
+  const groups = [
+    { key: 'wholesale', label: '卸売', variants: variantsForItem(item, 'wholesale') },
+    { key: 'reception', label: '店頭受付', variants: item.receptionVariants || [] }
+  ].filter(g => g.variants && g.variants.length);
+  return groups;
+}
+
+function receptionVariantByKey(item, key) {
+  const parts = String(key || '').split('::');
+  const source = parts[0] || '';
+  const size = parts.slice(1).join('::');
+  const group = receptionVariantGroups(item).find(g => g.key === source);
+  const variant = group ? group.variants.find(v => String(v.size) === String(size)) : null;
+  return { source, size, variant };
+}
+
+function receptionItemHtml(item, idx) {
+  const selectableItems = state.items.filter(x => receptionVariantGroups(x).length > 0 || x.id === item.itemId);
+  const beanOptions = selectableItems.filter(x => x.type === 'bean').map(x =>
+    `<option value="${escapeHtml(x.id)}" ${item.itemId === x.id ? 'selected' : ''}>${escapeHtml(x.name)}</option>`
+  ).join('');
+  const otherOptions = selectableItems.filter(x => x.type !== 'bean').map(x =>
+    `<option value="${escapeHtml(x.id)}" ${item.itemId === x.id ? 'selected' : ''}>${escapeHtml(x.name)}</option>`
+  ).join('');
+  const selected = state.items.find(x => x.id === item.itemId);
+  const variantGroups = selected ? receptionVariantGroups(selected) : [];
+  const selectedSource = item.variantSource || (selected && (selected.receptionVariants || []).some(v => String(v.size) === String(item.variant)) ? 'reception' : 'wholesale');
+  const selectedKey = item.variant ? selectedSource + '::' + item.variant : '';
+  const variantOptions = variantGroups.map(group => {
+    const options = group.variants.map(v => {
+      const key = group.key + '::' + v.size;
+      return `<option value="${escapeHtml(key)}" ${selectedKey === key ? 'selected' : ''}>${escapeHtml(v.size)}${v.price ? ' / ' + formatYen(v.price) : ''}</option>`;
+    }).join('');
+    return `<optgroup label="${escapeHtml(group.label)}">${options}</optgroup>`;
+  }).join('');
+  return `
+    <div class="order-item">
+      <div class="order-item-head">
+        <span class="order-item-num">#${idx + 1}</span>
+        ${currentReceptionItems.length > 1 ? `<button class="order-item-del ri-del" data-idx="${idx}">✕</button>` : ''}
+      </div>
+      <div class="field" style="margin-bottom:8px;">
+        <select class="ri-item-select" data-idx="${idx}">
+          <option value="">商品を選択</option>
+          ${beanOptions ? `<optgroup label="豆">${beanOptions}</optgroup>` : ''}
+          ${otherOptions ? `<optgroup label="その他商品">${otherOptions}</optgroup>` : ''}
+        </select>
+      </div>
+      ${selected && variantGroups.length ? `
+        <div class="field" style="margin-bottom:8px;">
+          <select class="ri-variant-select" data-idx="${idx}">
+            <option value="">容量・種類を選択</option>
+            ${variantOptions}
+          </select>
+        </div>
+      ` : ''}
+      <div class="field" style="margin-bottom:8px;">
+        <label class="field-label" style="font-size:12px; margin-bottom:4px;">数量</label>
+        <input type="number" class="ri-qty" data-idx="${idx}" value="${escapeHtml(item.quantity || 1)}" min="1" inputmode="numeric" />
+      </div>
+      <div class="field" style="margin-bottom:8px;">
+        <label class="field-label" style="font-size:12px; margin-bottom:4px;">金額</label>
+        <input type="number" class="ri-amount" data-idx="${idx}" value="${escapeHtml(item.amount || '')}" min="0" inputmode="numeric" placeholder="自動入力・変更可" />
+      </div>
+    </div>
+  `;
+}
+
+function renderReceptionItems() {
+  const container = $('ri-container');
+  if (!container) return;
+  container.innerHTML = currentReceptionItems.map((it, idx) => receptionItemHtml(it, idx)).join('');
+  document.querySelectorAll('.ri-item-select').forEach(el => {
+    el.addEventListener('change', () => {
+      const idx = +el.dataset.idx;
+      const item = state.items.find(x => x.id === el.value);
+      currentReceptionItems[idx] = { itemId: el.value, name: item ? item.name : '', type: item ? item.type : 'bean', variant: '', variantSource: '', quantity: 1, amount: '' };
+      renderReceptionItems();
+    });
+  });
+  document.querySelectorAll('.ri-variant-select').forEach(el => {
+    el.addEventListener('change', () => {
+      const idx = +el.dataset.idx;
+      const row = currentReceptionItems[idx];
+      const item = state.items.find(x => x.id === row.itemId);
+      const matched = item ? receptionVariantByKey(item, el.value) : null;
+      row.variant = matched ? matched.size : '';
+      row.variantSource = matched ? matched.source : '';
+      row.amount = matched && matched.variant && Number(matched.variant.price) > 0 ? Number(matched.variant.price) * (Number(row.quantity) || 1) : '';
+      renderReceptionItems();
+    });
+  });
+  document.querySelectorAll('.ri-qty').forEach(el => {
+    el.addEventListener('input', () => {
+      const idx = +el.dataset.idx;
+      const row = currentReceptionItems[idx];
+      row.quantity = Math.max(1, Number(el.value) || 1);
+      const item = state.items.find(x => x.id === row.itemId);
+      const selected = receptionVariantByKey(item, (row.variantSource || 'wholesale') + '::' + row.variant);
+      const price = selected && selected.variant ? Number(selected.variant.price) || 0 : 0;
+      row.amount = price > 0 ? price * row.quantity : row.amount;
+      renderReceptionItems();
+    });
+  });
+  document.querySelectorAll('.ri-amount').forEach(el => {
+    el.addEventListener('input', () => {
+      currentReceptionItems[+el.dataset.idx].amount = el.value;
+    });
+  });
+  document.querySelectorAll('.ri-del').forEach(el => {
+    el.addEventListener('click', () => {
+      currentReceptionItems.splice(+el.dataset.idx, 1);
+      if (!currentReceptionItems.length) currentReceptionItems.push({ itemId: '', variant: '', variantSource: '', quantity: 1, amount: '' });
+      renderReceptionItems();
+    });
+  });
+}
+
+function openReceptionModal() {
+  currentReceptionItems = [{ itemId: '', variant: '', quantity: 1, amount: '' }];
+  const shopOptions = state.shops.map(s => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join('');
+  const today = new Date().toISOString().slice(0, 10);
+  const body = `
+    <div class="field">
+      <label class="field-label field-required">受付元</label>
+      <select id="r-source">
+        <option value="店頭">店頭</option>
+        <option value="電話">電話</option>
+        <option value="口頭">口頭</option>
+        <option value="LINE">LINE</option>
+      </select>
+    </div>
+    <div class="field">
+      <label class="field-label field-required">顧客・店舗名</label>
+      <select id="r-shop"><option value="">選択してください</option>${shopOptions}</select>
+    </div>
+    <div class="field">
+      <label class="field-label">希望のお渡し・お届け日</label>
+      <input type="date" id="r-delivery" value="${today}" />
+    </div>
+    <div class="field">
+      <label class="field-label">受け取り方法</label>
+      <select id="r-place">${placeOptionsHtml('伊勢宮店')}</select>
+    </div>
+    <div style="margin: 16px 0 10px; font-size:13px; font-weight:600;">注文内容</div>
+    <div id="ri-container"></div>
+    <button class="btn-add-item" id="btn-add-reception-item">＋ 商品を追加する</button>
+    <div class="field"><label class="field-label">担当スタッフ</label><input type="text" id="r-staff" placeholder="なまえ" /></div>
+    <div class="field"><label class="field-label">メモ</label><textarea id="r-memo" rows="2"></textarea></div>
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600;">
+        <input type="checkbox" id="r-notify-slack" checked style="width:auto; box-shadow:none;" />
+        Slackに共有する
+      </label>
+    </div>
+    <button class="btn-primary pink" id="save-reception" style="margin-bottom:12px;">店頭受付を登録</button>
+  `;
+  openModal('店頭受付', body);
+  renderReceptionItems();
+  $('r-shop').addEventListener('change', () => {
+    const shop = state.shops.find(s => s.name === $('r-shop').value);
+    if (shop && shop.place) $('r-place').value = shop.place;
+  });
+  $('btn-add-reception-item').addEventListener('click', () => {
+    currentReceptionItems.push({ itemId: '', variant: '', variantSource: '', quantity: 1, amount: '' });
+    renderReceptionItems();
+  });
+  $('save-reception').addEventListener('click', saveReceptionOrder);
+}
+
+async function saveReceptionOrder() {
+  const shop = $('r-shop').value;
+  if (!shop) { alert('顧客・店舗名を選択してください'); return; }
+  const validItems = currentReceptionItems.filter(it => it.itemId);
+  if (!validItems.length) { alert('商品を選択してください'); return; }
+  const missing = validItems.find(it => {
+    const item = state.items.find(x => x.id === it.itemId);
+    return item && receptionVariantGroups(item).length > 0 && !it.variant;
+  });
+  if (missing) { alert('容量・種類を選択してください'); return; }
+  validItems.forEach(it => {
+    const item = state.items.find(x => x.id === it.itemId);
+    if (item) { it.name = item.name; it.type = item.type; }
+    it.quantity = Math.max(1, Number(it.quantity) || 1);
+    it.amount = Number(it.amount) > 0 ? Number(it.amount) : '';
+    if (it.type === 'bean') it.grind = 'whole';
+  });
+  const order = {
+    id: uid(),
+    shop,
+    items: validItems,
+    date: new Date().toISOString().slice(0, 10),
+    delivery: $('r-delivery').value,
+    place: $('r-place').value,
+    staff: $('r-staff').value,
+    memo: $('r-memo').value,
+    status: 'received',
+    createdAt: new Date().toISOString(),
+    completedAt: '',
+    completedBy: '',
+    orderSource: 'reception',
+    receptionSource: $('r-source').value,
+    customerName: '',
+    paymentMethod: '',
+    notifySlack: $('r-notify-slack').checked
+  };
+  state.orders.unshift(order);
+  saveCache();
+  closeModal();
+  renderAll();
+  toast('店頭受付を登録しました');
+  if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    const ok = await sendOrQueue('addOrder', order);
+    if (ok) {
+      await syncFromServer();
+      renderAll();
+    }
+  }
+}
+
+// ============================================================
+// 顧客モーダル
+// ============================================================
+function openShopDetail(shopId) {
+  const shop = state.shops.find(s => s.id === shopId);
+  if (!shop) return;
+
+  const body = `
+    <p class="card-meta"><span class="meta-label">店舗名</span>${escapeHtml(shop.name || '')}</p>
+    ${shop.person ? `<p class="card-meta"><span class="meta-label">担当者</span>${escapeHtml(shop.person)}</p>` : ''}
+    ${shop.email ? `<p class="card-meta"><span class="meta-label">メール</span>${escapeHtml(shop.email)}</p>` : ''}
+    ${shop.tel ? `<p class="card-meta"><span class="meta-label">電話番号</span>${escapeHtml(shop.tel)}</p>` : ''}
+    ${shop.address ? `<p class="card-meta"><span class="meta-label">住所</span>${escapeHtml(shop.address)}</p>` : ''}
+    ${shop.start ? `<p class="card-meta"><span class="meta-label">契約開始日</span>${escapeHtml(shop.start)}</p>` : ''}
+    ${shop.freq ? `<p class="card-meta"><span class="meta-label">納品頻度</span>${escapeHtml(shop.freq)}</p>` : ''}
+    ${shop.place ? `<p class="card-meta"><span class="meta-label">受け渡し場所</span>${escapeHtml(shop.place)}</p>` : ''}
+    ${shop.defaultPaymentMethod ? `<p class="card-meta"><span class="meta-label">支払い方法</span>${escapeHtml(shop.defaultPaymentMethod)}</p>` : ''}
+    ${shop.url ? `<p class="card-meta"><span class="meta-label">サイト</span><a href="${escapeHtml(shop.url)}" target="_blank">${escapeHtml(shop.url)}</a></p>` : ''}
+    <p class="card-meta"><span class="meta-label">契約状況</span>${shopStatusBadge(shop.status)}</p>
+    ${shop.shopId ? `<p class="card-meta"><span class="meta-label">注文ID</span>${escapeHtml(shop.shopId)}</p>` : ''}
+    ${shop.lastWeeklyMailSentAt ? `<p class="card-meta"><span class="meta-label">案内メール最終送信</span>${escapeHtml(shop.lastWeeklyMailSentAt)}</p>` : ''}
+    ${shop.introMailSentAt ? `<p class="card-meta"><span class="meta-label">導入メール送信</span>${escapeHtml(shop.introMailSentAt)}</p>` : '<p class="card-meta"><span class="meta-label">導入メール送信</span>未送信</p>'}
+    ${shop.memo ? `<div class="card-memo-wrap"><p class="card-memo-label">MEMO</p><p class="card-memo">${escapeHtml(shop.memo)}</p></div>` : ''}
+    ${shop.internalMemo ? `<div class="card-memo-wrap"><p class="card-memo-label">STAFF MEMO</p><p class="card-memo">${escapeHtml(shop.internalMemo)}</p></div>` : ''}
+    <div class="card-actions">
+      <button class="btn-small cyan" id="intro-mail-btn">導入メール</button>
+      <button class="btn-small" id="copy-order-url-btn">注文URLをコピー</button>
+    </div>
+  `;
+  openModal('顧客詳細', body);
+  $('intro-mail-btn').addEventListener('click', () => openIntroEmailModal(shop.id));
+  $('copy-order-url-btn').addEventListener('click', async () => {
+    let url;
+    try {
+      url = location.origin + location.pathname.replace(/[^/]*$/, '') + 'order.html?shopId=' + encodeURIComponent(shop.id);
+    } catch (e) {
+      alert('注文URLを作成できませんでした: ' + e.message);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('注文URLをコピーしました');
+    } catch (e) {
+      alert(url);
+    }
+  });
+}
+
+function openShopModal(shopId) {
+  const editingShop = shopId ? state.shops.find(s => s.id === shopId) : null;
+  const draft = editingShop ? null : loadDraft('shop');
+  const init = editingShop || draft || {};
+  const initDefaultPaymentMethod = init.defaultPaymentMethod || init['default-payment-method'] || '';
+  // 旧表記（伊勢宮/スナゴダ）の受け渡し場所を現行の選択肢名に正規化
+  const initPlace = init.place === '伊勢宮' ? '伊勢宮店'
+    : init.place === 'スナゴダ' ? 'SUNAGODA店'
+    : (init.place || '伊勢宮店');
+  const today = new Date().toISOString().slice(0, 10);
+
+  const body = `
+    <div class="field"><label class="field-label field-required">店舗名</label><input type="text" id="s-name" value="${escapeHtml(init.name || '')}" /></div>
+    <div class="field"><label class="field-label">住所</label><input type="text" id="s-address" value="${escapeHtml(init.address || '')}" /></div>
+    <div class="field"><label class="field-label">電話番号</label><input type="tel" id="s-tel" value="${escapeHtml(init.tel || '')}" /></div>
+    <div class="field"><label class="field-label">担当者</label><input type="text" id="s-person" value="${escapeHtml(init.person || '')}" /></div>
+    <div class="field"><label class="field-label">案内メール送信先</label><input type="email" id="s-email" placeholder="mail@example.com" value="${escapeHtml(init.email || '')}" /></div>
+    <div class="field"><label class="field-label">契約開始日</label><input type="date" id="s-start" value="${escapeHtml(init.start || today)}" /></div>
+    <div class="field"><label class="field-label">納品頻度</label><input type="text" id="s-freq" placeholder="例：週1、月2" value="${escapeHtml(init.freq || '')}" /></div>
+    <div class="field">
+      <label class="field-label">受け渡し場所</label>
+      <select id="s-place">${placeOptionsHtml(initPlace)}</select>
+    </div>
+    <div class="field">
+      <label class="field-label">既定の支払い方法</label>
+      <select id="s-default-payment-method">
+        <option value="">注文ごとに選択</option>
+        <option value="店頭で会計" ${initDefaultPaymentMethod === '店頭で会計' ? 'selected' : ''}>店頭で会計</option>
+        <option value="請求書払" ${initDefaultPaymentMethod === '請求書払' ? 'selected' : ''}>請求書払</option>
+      </select>
+    </div>
+    <div class="field"><label class="field-label">SNS・WebサイトURL（任意）</label><input type="url" id="s-url" placeholder="https://..." value="${escapeHtml(init.url || '')}" /></div>
+    <div class="field"><label class="field-label">メモ</label><textarea id="s-memo" rows="2">${escapeHtml(init.memo || '')}</textarea></div>
+    <div class="field"><label class="field-label">スタッフ用内部メモ</label><textarea id="s-internal-memo" rows="2" placeholder="納品時の注意、請求、好みなど">${escapeHtml(init.internalMemo || '')}</textarea></div>
+    <div class="field">
+      <label class="field-label">契約状況</label>
+      <select id="s-status">
+        <option value="active" ${(init.status === 'active' || !init.status) ? 'selected' : ''}>契約中</option>
+        <option value="pending" ${init.status === 'pending' ? 'selected' : ''}>確認待ち</option>
+        <option value="pause" ${init.status === 'pause' ? 'selected' : ''}>休止中</option>
+        <option value="end" ${init.status === 'end' ? 'selected' : ''}>終了</option>
+      </select>
+    </div>
+    <input type="hidden" id="s-id" value="${editingShop ? editingShop.id : ''}" />
+    <button class="btn-primary yellow" id="save-shop" style="margin-bottom:12px;">${editingShop ? '更新する' : '保存する'}</button>
+  `;
+  openModal(editingShop ? '顧客を編集' : '新しい顧客', body);
+
+  ['s-name','s-address','s-tel','s-person','s-email','s-start','s-freq','s-place','s-default-payment-method','s-url','s-memo','s-internal-memo','s-status'].forEach(id => {
+    const el = $(id);
+    if (el && !editingShop) {
+      const saveShopDraft = () => {
+        const d = {};
+        ['s-name','s-address','s-tel','s-person','s-email','s-start','s-freq','s-place','s-default-payment-method','s-url','s-memo','s-internal-memo','s-status'].forEach(k => {
+          const e = $(k); if (e) d[k.replace('s-', '')] = e.value;
+        });
+        localStorage.setItem(STORAGE_KEYS.DRAFT_SHOP, JSON.stringify(d));
+      };
+      el.addEventListener('input', saveShopDraft);
+      el.addEventListener('change', saveShopDraft);
+    }
+  });
+
+  $('save-shop').addEventListener('click', () => saveShop(editingShop));
+}
+
+async function saveShop(editingShop) {
+  const name = $('s-name').value.trim();
+  if (!name) { alert('店舗名を入力してください'); return; }
+
+  const shop = {
+    id: editingShop ? editingShop.id : uid(),
+    name,
+    address: $('s-address').value,
+    tel: $('s-tel').value,
+    person: $('s-person').value,
+    email: $('s-email').value,
+    start: $('s-start').value,
+    freq: $('s-freq').value,
+    place: $('s-place').value,
+    defaultPaymentMethod: $('s-default-payment-method').value,
+    url: $('s-url').value,
+    memo: $('s-memo').value,
+    internalMemo: $('s-internal-memo').value,
+    status: $('s-status').value,
+    createdAt: editingShop ? editingShop.createdAt : new Date().toISOString(),
+    shopId: editingShop ? editingShop.shopId : '',
+    orderEnabled: editingShop ? editingShop.orderEnabled : '',
+    lastWeeklyMailSentAt: editingShop ? editingShop.lastWeeklyMailSentAt : '',
+    introMailSentAt: editingShop ? editingShop.introMailSentAt : ''
+  };
+
+  if (editingShop) {
+    const idx = state.shops.findIndex(s => s.id === editingShop.id);
+    if (idx !== -1) state.shops[idx] = shop;
+  } else {
+    state.shops.unshift(shop);
+  }
+  saveCache();
+  clearDraft('shop');
+  closeModal();
+  renderAll();
+  toast(editingShop ? '顧客を更新しました' : '顧客を登録しました');
+
+  if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    const ok = await sendOrQueue(editingShop ? 'updateShop' : 'addShop', shop);
+    if (ok) {
+      await syncFromServer();
+      renderAll();
+    }
+  }
+}
+
+// ============================================================
+// 商品マスタモーダル
+// ============================================================
+let currentWholesaleVariants = [];
+let currentShopVariants = [];
+let currentReceptionVariants = [];
+
+function variantsForItem(item, kind) {
+  if (!item) return [];
+  if (kind === 'reception') return (item.receptionVariants && item.receptionVariants.length) ? item.receptionVariants : variantsForItem(item, 'shop');
+  if (kind === 'shop') return (item.shopVariants && item.shopVariants.length) ? item.shopVariants : (item.variants || []);
+  return (item.wholesaleVariants && item.wholesaleVariants.length) ? item.wholesaleVariants : (item.variants || []);
+}
+
+function isShopItem(item) {
+  return item && (item.useShop === true || String(item.useShop).toLowerCase() === 'true');
+}
+
+function variantRowHtml(v, idx, kind) {
+  return `
+    <div class="variant-row" data-vidx="${idx}" data-kind="${kind}">
+      <input type="text" class="vr-size" data-kind="${kind}" data-vidx="${idx}" value="${escapeHtml(v.size || '')}" placeholder="容量・種類（例：500g / 5Pセット）" />
+        <input type="number" class="vr-price" data-kind="${kind}" data-vidx="${idx}" value="${escapeHtml(v.price || '')}" placeholder="価格" inputmode="numeric" />
+      <button class="variant-del vr-del" data-kind="${kind}" data-vidx="${idx}">✕</button>
+    </div>
+  `;
+}
+
+function variantStore(kind) {
+  if (kind === 'reception') return currentReceptionVariants;
+  return kind === 'shop' ? currentShopVariants : currentWholesaleVariants;
+}
+
+function renderVariants(kind) {
+  const c = $(kind === 'reception' ? 'vr-reception-container' : kind === 'shop' ? 'vr-shop-container' : 'vr-wholesale-container');
+  if (!c) return;
+  c.innerHTML = variantStore(kind).map((v, i) => variantRowHtml(v, i, kind)).join('');
+  c.querySelectorAll('.vr-size').forEach(el => {
+    el.addEventListener('input', () => {
+      const idx = +el.dataset.vidx;
+      variantStore(el.dataset.kind)[idx].size = el.value;
+    });
+  });
+  c.querySelectorAll('.vr-price').forEach(el => {
+    el.addEventListener('input', () => {
+      const idx = +el.dataset.vidx;
+      variantStore(el.dataset.kind)[idx].price = el.value;
+    });
+  });
+  c.querySelectorAll('.vr-del').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = +el.dataset.vidx;
+      const store = variantStore(el.dataset.kind);
+      store.splice(idx, 1);
+      renderVariants(el.dataset.kind);
+    });
+  });
+}
+
+function openItemModal(itemId) {
+  const editing = itemId ? state.items.find(i => i.id === itemId) : null;
+  const init = editing || {};
+  currentWholesaleVariants = JSON.parse(JSON.stringify(variantsForItem(init, 'wholesale')));
+  currentShopVariants = JSON.parse(JSON.stringify(variantsForItem(init, 'shop')));
+  currentReceptionVariants = JSON.parse(JSON.stringify(init.receptionVariants || []));
+  let currentType = init.type || 'bean';
+  const selectedShopIds = String(init.targetShopIds || '').split(',').map(s => s.trim()).filter(Boolean);
+  const shopChecks = state.shops.map(s => `
+    <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin: 6px 0;">
+      <input type="checkbox" class="i-target-shop" value="${escapeHtml(s.id)}" ${selectedShopIds.indexOf(String(s.id)) !== -1 || selectedShopIds.indexOf(String(s.shopId || '')) !== -1 ? 'checked' : ''} style="width:auto;" />
+      ${escapeHtml(s.name)}
+    </label>
+  `).join('');
+
+  const body = `
+    <div class="field">
+      <label class="field-label">商品の種類</label>
+      <div class="item-type-toggle">
+        <button class="item-type-btn it-type ${currentType === 'bean' ? 'active' : ''}" data-type="bean">コーヒー豆</button>
+        <button class="item-type-btn it-type ${currentType !== 'bean' ? 'active' : ''}" data-type="other">その他商品</button>
+      </div>
+    </div>
+    <div class="field"><label class="field-label field-required">商品名</label><input type="text" id="i-name" value="${escapeHtml(init.name || '')}" placeholder="例：エチオピア・イルガチェフェ" /></div>
+    <div class="field">
+      <label class="field-label">用途</label>
+      <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin: 6px 0;">
+        <input type="checkbox" id="i-use-wholesale" ${(init.useWholesale === false || String(init.useWholesale).toLowerCase() === 'false') ? '' : 'checked'} style="width:auto;" />
+        卸用
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin: 6px 0;">
+        <input type="checkbox" id="i-use-shop" ${(init.useShop === true || String(init.useShop).toLowerCase() === 'true') ? 'checked' : ''} style="width:auto;" />
+        店舗提供用
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin: 6px 0;">
+        <input type="checkbox" id="i-use-event" ${(init.useEvent === true || String(init.useEvent).toLowerCase() === 'true') ? 'checked' : ''} style="width:auto;" />
+        イベント用
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin: 10px 0 0;">
+        <input type="checkbox" id="i-hidden" ${String(init.hidden || '').toLowerCase() === 'true' ? 'checked' : ''} style="width:auto;" />
+        注文ページでは非表示にする
+      </label>
+    </div>
+    <div class="field"><label class="field-label">画像URL</label><input type="url" id="i-image-url" value="${escapeHtml(init.imageUrl || '')}" placeholder="https://..." /></div>
+    <div class="field">
+      <label class="field-label">注文ページの表示先</label>
+      <select id="i-visibility">
+        <option value="all" ${String(init.visibility || 'all') !== 'selected' ? 'selected' : ''}>全卸先に表示</option>
+        <option value="selected" ${String(init.visibility || '') === 'selected' ? 'selected' : ''}>選んだ卸先だけに表示</option>
+      </select>
+      <div id="i-target-shops" style="margin-top:10px; display:${String(init.visibility || '') === 'selected' ? 'block' : 'none'};">
+        ${shopChecks || '<p style="font-size:12px; color:var(--text-secondary); margin:0;">先に顧客を登録してください。</p>'}
+      </div>
+      <p style="font-size:11px; color: var(--text-secondary); margin: 8px 0 0;">A店ブレンドなど顧客専用商品は「選んだ卸先だけ」にします。</p>
+    </div>
+    
+    <div class="field">
+      <label class="field-label">卸用の容量・価格バリエーション</label>
+      <div id="vr-wholesale-container" class="variant-list"></div>
+      <button type="button" class="variant-add" id="vr-wholesale-add">＋ 卸用を追加</button>
+      <p style="font-size:11px; color: var(--text-secondary); margin: 8px 0 0;">注文ページに表示されます。例：500g / 1000g / ドリップバッグ5P</p>
+    </div>
+
+    <div class="field">
+      <label class="field-label">店舗用の容量・価格バリエーション</label>
+      <div id="vr-shop-container" class="variant-list"></div>
+      <button type="button" class="variant-add" id="vr-shop-add">＋ 店舗用を追加</button>
+      <p style="font-size:11px; color: var(--text-secondary); margin: 8px 0 0;">スタッフ画面の「新しい注文を登録」で使います。例：1kg / 2kg / 5Pセット</p>
+    </div>
+
+    <div class="field">
+      <label class="field-label">店頭受付用の容量・価格バリエーション</label>
+      <div id="vr-reception-container" class="variant-list"></div>
+      <button type="button" class="variant-add" id="vr-reception-add">＋ 店頭受付用を追加</button>
+      <p style="font-size:11px; color: var(--text-secondary); margin: 8px 0 0;">管理画面の「店頭受付」で使います。店頭・電話・口頭受付用の価格を登録できます。</p>
+    </div>
+
+    <div class="field"><label class="field-label">メモ</label><textarea id="i-memo" rows="2" placeholder="特徴、焙煎度など">${escapeHtml(init.memo || '')}</textarea></div>
+    <input type="hidden" id="i-id" value="${editing ? editing.id : ''}" />
+    <input type="hidden" id="i-type" value="${currentType}" />
+    <button class="btn-primary red" id="save-item" style="margin-bottom:12px;">${editing ? '更新する' : '保存する'}</button>
+  `;
+  openModal(editing ? '商品を編集' : '新しい商品', body);
+  renderVariants('wholesale');
+  renderVariants('shop');
+  renderVariants('reception');
+
+  document.querySelectorAll('.it-type').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.it-type').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      $('i-type').value = b.dataset.type;
+    });
+  });
+
+  $('vr-wholesale-add').addEventListener('click', () => {
+    currentWholesaleVariants.push({ size: '', price: '' });
+    renderVariants('wholesale');
+  });
+  $('vr-shop-add').addEventListener('click', () => {
+    currentShopVariants.push({ size: '', price: '' });
+    renderVariants('shop');
+  });
+  $('vr-reception-add').addEventListener('click', () => {
+    currentReceptionVariants.push({ size: '', price: '' });
+    renderVariants('reception');
+  });
+  $('i-visibility').addEventListener('change', () => {
+    $('i-target-shops').style.display = $('i-visibility').value === 'selected' ? 'block' : 'none';
+  });
+
+  $('save-item').addEventListener('click', () => saveItem(editing));
+}
+
+async function saveItem(editing) {
+  const name = $('i-name').value.trim();
+  if (!name) { alert('商品名を入力してください'); return; }
+  const validWholesaleVariants = currentWholesaleVariants
+    .filter(v => v.size)
+    .map(v => ({ size: v.size, price: v.price || '' }));
+  const validShopVariants = currentShopVariants
+    .filter(v => v.size)
+    .map(v => ({ size: v.size, price: v.price || '' }));
+  const validReceptionVariants = currentReceptionVariants
+    .filter(v => v.size)
+    .map(v => ({ size: v.size, price: v.price || '' }));
+  const targetShopIds = Array.from(document.querySelectorAll('.i-target-shop:checked')).map(el => el.value).join(',');
+  if ($('i-visibility').value === 'selected' && !targetShopIds) {
+    alert('表示先の顧客を1件以上選択してください');
+    return;
+  }
+
+  const item = {
+    id: editing ? editing.id : uid(),
+    name,
+    type: $('i-type').value || 'bean',
+    variants: validWholesaleVariants,
+    wholesaleVariants: validWholesaleVariants,
+    shopVariants: validShopVariants,
+    receptionVariants: validReceptionVariants,
+    useWholesale: $('i-use-wholesale').checked,
+    useShop: $('i-use-shop').checked,
+    useEvent: $('i-use-event').checked,
+    imageUrl: $('i-image-url').value,
+    hidden: $('i-hidden').checked,
+    visibility: $('i-visibility').value,
+    targetShopIds: targetShopIds,
+    memo: $('i-memo').value,
+    createdAt: editing ? editing.createdAt : new Date().toISOString()
+  };
+
+  if (editing) {
+    const idx = state.items.findIndex(i => i.id === editing.id);
+    if (idx !== -1) state.items[idx] = item;
+  } else {
+    state.items.unshift(item);
+  }
+  saveCache();
+  closeModal();
+  renderAll();
+  toast(editing ? '商品を更新しました' : '商品を登録しました');
+
+  if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    const ok = await sendOrQueue(editing ? 'updateItem' : 'addItem', item);
+    if (ok) {
+      await syncFromServer();
+      renderAll();
+    }
+  }
+}
+
+async function deleteItem(id) {
+  if (!confirm('この商品をマスタから削除しますか？')) return;
+  state.items = state.items.filter(i => i.id !== id);
+  saveCache();
+  renderAll();
+  if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    await sendOrQueue('deleteItem', { id });
+  }
+}
+
+// ============================================================
+// 注文操作
+// ============================================================
+function completeOrder(id) {
+  const idx = state.orders.findIndex(o => o.id === id);
+  if (idx === -1) return;
+  const lastBy = localStorage.getItem('imagine_last_completed_by') || '';
+
+  const body = `
+    <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 14px;">受け渡しを担当した人の名前を入力してください</p>
+    <div class="field">
+      <label class="field-label">受け渡し担当</label>
+      <input type="text" id="complete-by" value="${escapeHtml(lastBy)}" placeholder="なまえ" autocomplete="off" />
+    </div>
+    <button class="btn-primary green" id="complete-confirm" style="margin-bottom: 8px;">完了する</button>
+  `;
+  openModal('受け渡し完了', body);
+
+  // 自動フォーカス・末尾にカーソル
+  setTimeout(() => {
+    const el = $('complete-by');
+    if (el) {
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    }
+  }, 100);
+
+  const submit = async () => {
+    const name = ($('complete-by').value || '').trim();
+    if (!name) {
+      if (!confirm('担当者名なしで完了にしますか？')) return;
+    }
+    state.orders[idx].status = 'done';
+    state.orders[idx].completedAt = new Date().toISOString();
+    state.orders[idx].completedBy = name;
+    if (name) localStorage.setItem('imagine_last_completed_by', name);
+    saveCache();
+    closeModal();
+    renderAll();
+    toast('受け渡し完了にしました');
+    if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+      await sendOrQueue('updateOrder', state.orders[idx]);
+    }
+  };
+
+  $('complete-confirm').addEventListener('click', submit);
+  $('complete-by').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submit();
+  });
+}
+
+async function restoreOrder(id) {
+  if (!confirm('この履歴を注文へ戻しますか？')) return;
+  const idx = state.orders.findIndex(o => o.id === id);
+  if (idx === -1) return;
+  state.orders[idx].status = 'received';
+  state.orders[idx].completedAt = '';
+  saveCache();
+  renderAll();
+  toast('注文へ戻しました');
+  if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    await sendOrQueue('updateOrder', state.orders[idx]);
+  }
+}
+
+async function cancelOrder(id) {
+  if (!confirm('この注文を「削除・取消」に移動しますか？')) return;
+  const idx = state.orders.findIndex(o => o.id === id);
+  if (idx === -1) return;
+  state.orders[idx].canceledFromStatus = state.orders[idx].status || 'received';
+  state.orders[idx].status = 'canceled';
+  state.orders[idx].canceledAt = new Date().toISOString();
+  saveCache();
+  renderAll();
+  toast('削除・取消へ移動しました');
+  if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    await sendOrQueue('updateOrder', state.orders[idx]);
+  }
+}
+
+async function restoreCanceledOrder(id, status) {
+  const message = status === 'done' ? '履歴へ戻しますか？' : '注文へ戻しますか？';
+  if (!confirm(message)) return;
+  const idx = state.orders.findIndex(o => o.id === id);
+  if (idx === -1) return;
+  state.orders[idx].status = status;
+  state.orders[idx].canceledAt = '';
+  state.orders[idx].canceledFromStatus = '';
+  if (status === 'received') {
+    state.orders[idx].completedAt = '';
+    state.orders[idx].completedBy = '';
+  }
+  saveCache();
+  renderAll();
+  toast(status === 'done' ? '履歴へ戻しました' : '注文へ戻しました');
+  if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    await sendOrQueue('updateOrder', state.orders[idx]);
+  }
+}
+
+async function duplicateOrder(id) {
+  const original = state.orders.find(o => o.id === id);
+  if (!original) return;
+  if (!confirm('この注文を複製して、新しい注文として登録しますか？')) return;
+  const order = JSON.parse(JSON.stringify(original));
+  order.id = uid();
+  order.status = 'received';
+  order.date = new Date().toISOString().slice(0, 10);
+  order.createdAt = new Date().toISOString();
+  order.completedAt = '';
+  order.completedBy = '';
+  order.canceledAt = '';
+  order.canceledFromStatus = '';
+  order.orderSource = 'staff';
+  order.memo = order.memo ? order.memo + '\n（複製元: ' + (original.createdAt || original.date || '') + '）' : '（複製元: ' + (original.createdAt || original.date || '') + '）';
+  state.orders.unshift(order);
+  saveCache();
+  renderAll();
+  toast('注文を複製しました');
+  if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    const ok = await sendOrQueue('addOrder', order);
+    if (ok) {
+      await syncFromServer();
+      renderAll();
+    }
+  }
+}
+
+async function deleteShop(id) {
+  if (!confirm('この顧客を削除しますか？')) return;
+  state.shops = state.shops.filter(s => s.id !== id);
+  saveCache();
+  renderAll();
+  if (USE_GOOGLE_SCRIPT || state.gasUrl) {
+    await sendOrQueue('deleteShop', { id });
+  }
+}
+
+function updateWeeklyMailCount() {
+  const el = $('weekly-mail-count');
+  if (!el) return;
+  const count = document.querySelectorAll('.weekly-mail-check:checked').length;
+  el.textContent = count + '件に送信します';
+}
+
+async function sendWeeklyOrderEmailsFromButton() {
+  if (!USE_GOOGLE_SCRIPT && !state.gasUrl) {
+    alert('Gmail送信はApps Scriptに接続している状態で使えます。先にWeb App URLを設定してください。');
+    return;
+  }
+
+  const btn = $('send-weekly-mails-btn');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '確認中...';
+
+  try {
+    const preview = await gasRequest('sendWeeklyOrderEmails', { dryRun: true });
+    const targets = preview.targets || [];
+
+    if (targets.length === 0) {
+      alert('送信対象がありません。顧客にメールアドレスが入っていて、契約中になっているか確認してください。');
+      return;
+    }
+
+    const rows = targets.map(function(t) {
+      const sentBadge = t.sentThisWeek
+        ? '<span style="font-size:11px; background:var(--accent-yellow); border:1px solid var(--border); border-radius:999px; padding:2px 8px; margin-left:6px; font-weight:600;">今週送信済み</span>'
+        : '';
+      return `
+        <label style="display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--border-soft); cursor:pointer;">
+          <input type="checkbox" class="weekly-mail-check" data-id="${escapeHtml(t.id)}"
+            ${t.sentThisWeek ? '' : 'checked'}
+            style="width:20px; height:20px; flex-shrink:0; box-shadow:none; accent-color:var(--accent-cyan);" />
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700; font-size:15px;">${escapeHtml(t.name)}${sentBadge}</div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">${escapeHtml(t.email)}</div>
+          </div>
+        </label>
+      `;
+    }).join('');
+
+    const body = `
+      <div class="field">
+        <label class="field-label field-required">件名</label>
+        <input type="text" id="weekly-mail-subject" value="${escapeHtml(preview.subject || '')}" />
+      </div>
+      <div class="field">
+        <label class="field-label field-required">本文</label>
+        <p style="font-size:11px; color:var(--text-secondary); margin:0 0 6px;">※宛名（店舗名・担当者様）は自動で付きます。本文中の {{ORDER_URL}} は各顧客の注文URLに自動置換されます。</p>
+        <textarea id="weekly-mail-body" rows="14">${escapeHtml(preview.bodyTemplate || '')}</textarea>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:14px;">
+        <button class="btn-small cyan" id="weekly-select-all">全選択</button>
+        <button class="btn-small" id="weekly-deselect-all">全解除</button>
+      </div>
+      <div style="margin-bottom:14px;">${rows}</div>
+      <p id="weekly-mail-count" style="font-size:13px; color:var(--text-secondary); margin:0 0 12px; font-weight:600;"></p>
+      <button class="btn-primary" id="weekly-send-btn" style="margin-bottom:8px;">送信する</button>
+    `;
+
+    openModal('案内メールを送信', body);
+    updateWeeklyMailCount();
+
+    $('weekly-select-all').addEventListener('click', function() {
+      document.querySelectorAll('.weekly-mail-check').forEach(function(c) { c.checked = true; });
+      updateWeeklyMailCount();
+    });
+    $('weekly-deselect-all').addEventListener('click', function() {
+      document.querySelectorAll('.weekly-mail-check').forEach(function(c) { c.checked = false; });
+      updateWeeklyMailCount();
+    });
+    document.querySelectorAll('.weekly-mail-check').forEach(function(c) {
+      c.addEventListener('change', updateWeeklyMailCount);
+    });
+
+    $('weekly-send-btn').addEventListener('click', async function() {
+      const selected = Array.from(document.querySelectorAll('.weekly-mail-check:checked'))
+        .map(function(c) { return c.dataset.id; });
+      if (selected.length === 0) {
+        alert('送信先を1件以上選択してください');
+        return;
+      }
+
+      const subject = $('weekly-mail-subject').value.trim();
+      const bodyTemplate = $('weekly-mail-body').value;
+      if (!subject) { alert('件名を入力してください'); return; }
+      if (!bodyTemplate.trim()) { alert('本文を入力してください'); return; }
+
+      const sendBtn = $('weekly-send-btn');
+      sendBtn.disabled = true;
+      sendBtn.textContent = '送信中...';
+
+      try {
+        const result = await gasRequest('sendWeeklyOrderEmails', {
+          dryRun: false,
+          targetShopIds: selected,
+          subject: subject,
+          bodyTemplate: bodyTemplate
+        });
+        closeModal();
+        toast('案内メールを' + (result.count || 0) + '件送信しました');
+        if (result.failed && result.failed.length) {
+          alert('送信できなかった宛先があります（' + result.failed.length + '件）:\n' + result.failed.join('\n'));
+        }
+        await syncFromServer();
+        renderAll();
+      } catch (e) {
+        alert('送信できませんでした: ' + (e.message || e));
+        sendBtn.disabled = false;
+        sendBtn.textContent = '送信する';
+      }
+    });
+
+  } catch (e) {
+    alert('確認できませんでした: ' + (e.message || e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+function updateCustomMailCount() {
+  const el = $('custom-mail-count');
+  if (!el) return;
+  const count = document.querySelectorAll('.custom-mail-check:checked').length;
+  el.textContent = count + '件に送信します';
+}
+
+async function openCustomEmailModal() {
+  if (!USE_GOOGLE_SCRIPT && !state.gasUrl) {
+    alert('メール送信はApps Scriptに接続している状態で使えます。');
+    return;
+  }
+
+  const mailableShops = state.shops.filter(function(s) {
+    return s.email && s.email.indexOf('@') !== -1 && String(s.status || 'active') === 'active';
+  });
+
+  if (mailableShops.length === 0) {
+    alert('メールアドレスが登録された契約中の顧客がいません。');
+    return;
+  }
+
+  const shopRows = mailableShops.map(function(s) {
+    return `
+      <label style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border-soft); cursor:pointer;">
+        <input type="checkbox" class="custom-mail-check" data-id="${escapeHtml(s.id)}" checked
+          style="width:20px; height:20px; flex-shrink:0; box-shadow:none; accent-color:var(--accent-cyan);" />
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:700; font-size:15px;">${escapeHtml(s.name)}</div>
+          <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">${escapeHtml(s.email)}</div>
+        </div>
+      </label>
+    `;
+  }).join('');
+
+  const body = `
+    <div class="field">
+      <label class="field-label field-required">件名</label>
+      <input type="text" id="custom-mail-subject" placeholder="例：営業時間変更のお知らせ" />
+    </div>
+    <div class="field">
+      <label class="field-label field-required">本文</label>
+      <p style="font-size:11px; color:var(--text-secondary); margin:0 0 6px;">※宛名（店舗名・担当者様）と署名（IMAGINE.COFFEE）は自動で付きます</p>
+      <textarea id="custom-mail-body" rows="7" placeholder="本文を入力してください"></textarea>
+    </div>
+    <div class="field">
+      <label class="field-label">送信先</label>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button class="btn-small cyan" id="custom-select-all">全選択</button>
+        <button class="btn-small" id="custom-deselect-all">全解除</button>
+      </div>
+      <div style="max-height:220px; overflow-y:auto;">${shopRows}</div>
+    </div>
+    <p id="custom-mail-count" style="font-size:13px; color:var(--text-secondary); margin:0 0 12px; font-weight:600;"></p>
+    <button class="btn-primary" id="custom-send-btn" style="margin-bottom:8px;">送信する</button>
+  `;
+
+  openModal('お知らせメールを送信', body);
+  updateCustomMailCount();
+
+  $('custom-select-all').addEventListener('click', function() {
+    document.querySelectorAll('.custom-mail-check').forEach(function(c) { c.checked = true; });
+    updateCustomMailCount();
+  });
+  $('custom-deselect-all').addEventListener('click', function() {
+    document.querySelectorAll('.custom-mail-check').forEach(function(c) { c.checked = false; });
+    updateCustomMailCount();
+  });
+  document.querySelectorAll('.custom-mail-check').forEach(function(c) {
+    c.addEventListener('change', updateCustomMailCount);
+  });
+
+  $('custom-send-btn').addEventListener('click', async function() {
+    const subject = $('custom-mail-subject').value.trim();
+    const mailBody = $('custom-mail-body').value.trim();
+    const selected = Array.from(document.querySelectorAll('.custom-mail-check:checked'))
+      .map(function(c) { return c.dataset.id; });
+
+    if (!subject) { alert('件名を入力してください'); return; }
+    if (!mailBody) { alert('本文を入力してください'); return; }
+    if (selected.length === 0) { alert('送信先を1件以上選択してください'); return; }
+
+    const sendBtn = $('custom-send-btn');
+    sendBtn.disabled = true;
+    sendBtn.textContent = '送信中...';
+
+    try {
+      const result = await gasRequest('sendCustomEmail', { shopIds: selected, subject: subject, body: mailBody });
+      closeModal();
+      toast('お知らせメールを' + (result.count || 0) + '件送信しました');
+      if (result.failed && result.failed.length) {
+        alert('送信できなかった宛先があります（' + result.failed.length + '件）:\n' + result.failed.join('\n'));
+      }
+    } catch (e) {
+      alert('送信できませんでした: ' + (e.message || e));
+      sendBtn.disabled = false;
+      sendBtn.textContent = '送信する';
+    }
+  });
+}
+
+async function openIntroEmailModal(shopId) {
+  if (!USE_GOOGLE_SCRIPT && !state.gasUrl) {
+    alert('導入メール送信はApps Scriptに接続している状態で使えます。');
+    return;
+  }
+  try {
+    const preview = await gasRequest('sendIntroEmail', { shopId: shopId, dryRun: true });
+    const body = `
+      <p class="card-meta"><span class="meta-label">送信先</span>${escapeHtml(preview.shop.name || '')} / ${escapeHtml(preview.shop.email || '')}</p>
+      <div class="field">
+        <label class="field-label">件名</label>
+        <input type="text" id="intro-subject" value="${escapeHtml(preview.subject || '')}" />
+      </div>
+      <div class="field">
+        <label class="field-label">本文</label>
+        <textarea id="intro-body" rows="14">${escapeHtml(preview.body || '')}</textarea>
+      </div>
+      <button class="btn-primary" id="intro-send-btn" style="margin-bottom:8px;">導入メールを送信</button>
+    `;
+    openModal('導入メール', body);
+    $('intro-send-btn').addEventListener('click', async () => {
+      const btn = $('intro-send-btn');
+      btn.disabled = true;
+      btn.textContent = '送信中...';
+      try {
+        const result = await gasRequest('sendIntroEmail', {
+          shopId: shopId,
+          dryRun: false,
+          subject: $('intro-subject').value,
+          body: $('intro-body').value
+        });
+        closeModal();
+        toast('導入メールを送信しました');
+        await syncFromServer();
+        renderAll();
+      } catch (e) {
+        alert('送信できませんでした: ' + (e.message || e));
+        btn.disabled = false;
+        btn.textContent = '導入メールを送信';
+      }
+    });
+  } catch (e) {
+    alert('確認できませんでした: ' + (e.message || e));
+  }
+}
+
+function getCustomerNoticeSetting() {
+  return (state.settings || []).find(s => String(s.key || '') === 'customerNotice') || {};
+}
+
+function renderNoticePreview() {
+  const el = $('notice-preview');
+  if (!el) return;
+  const n = getCustomerNoticeSetting();
+  if (!n.value || String(n.enabled || '').toLowerCase() === 'false') {
+    el.innerHTML = '<p class="empty">現在、お客さん画面のお知らせは非表示です</p>';
+    return;
+  }
+  el.innerHTML = `
+    <div class="card yellow">
+      <p class="card-title">表示中のお知らせ</p>
+      <p class="card-memo" style="margin-top:10px;">${escapeHtml(n.value)}</p>
+      <p class="card-meta" style="margin-top:10px;"><span class="meta-label">表示期間</span>${escapeHtml(n.startDate || '開始日なし')} 〜 ${escapeHtml(n.endDate || '終了日なし')}</p>
+    </div>
+  `;
+}
+
+function openNoticeModal() {
+  const n = getCustomerNoticeSetting();
+  const body = `
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:8px; font-size:14px;">
+        <input type="checkbox" id="notice-enabled" ${(String(n.enabled || '').toLowerCase() === 'true') ? 'checked' : ''} style="width:auto;" />
+        お客さん画面に表示する
+      </label>
+    </div>
+    <div class="field">
+      <label class="field-label">お知らせ本文</label>
+      <textarea id="notice-value" rows="5" placeholder="例：6月20日〜24日は焙煎業務をお休みします。">${escapeHtml(n.value || '')}</textarea>
+    </div>
+    <div class="field">
+      <label class="field-label">表示開始日</label>
+      <input type="date" id="notice-start" value="${escapeHtml(n.startDate || '')}" />
+    </div>
+    <div class="field">
+      <label class="field-label">表示終了日</label>
+      <input type="date" id="notice-end" value="${escapeHtml(n.endDate || '')}" />
+    </div>
+    <button class="btn-primary yellow" id="save-notice" style="margin-bottom:8px;">保存する</button>
+  `;
+  openModal('お知らせ設定', body);
+  $('save-notice').addEventListener('click', saveNoticeFromModal);
+}
+
+async function saveNoticeFromModal() {
+  const payload = {
+    enabled: $('notice-enabled').checked,
+    value: $('notice-value').value,
+    startDate: $('notice-start').value,
+    endDate: $('notice-end').value
+  };
+  try {
+    await gasRequest('saveNotice', payload);
+    closeModal();
+    toast('お知らせを保存しました');
+    await syncFromServer();
+    renderAll();
+  } catch (e) {
+    alert('保存できませんでした: ' + (e.message || e));
+  }
+}
+
+const PRICE_LIST_DEFAULT_TEXT = `# 焙煎豆（エチオピア／グアテマラ／インドネシア）
+卸価格|7,500円〜|/kg|
+
+# 焙煎豆（Limited）
+卸価格|10,800円〜|/kg|
+※豆について、10kg以上のご注文の場合は個別対応させていただきます。ご相談ください。
+※オリジナルブレンドをご希望の場合は、別途ご相談ください。
+
+# 焙煎豆100g 青袋入り（エチオピア／グアテマラ／インドネシア）
+下代|825円|/袋|1,100円
+
+# 焙煎豆100g 白袋入り（Limited）
+※別途ご相談ください
+
+# 青袋のみ（卸販売のみ）
+|200円|/袋|
+
+# コーヒーバッグ（FRUITYすっきり／FULL BODYしっかり／DECAFデカフェ）
+下代|187円|1P|250円
+
+# コーヒーバッグ5Pセット箱入り（FRUITYすっきり／FULL BODYしっかり／DECAFデカフェ／MIX3種）
+下代|937円|5Pセット|1,250円
+
+# その他
+※上代価格については、販売店様にお任せいたします。
+※ご注文は専用フォームよりお願いいたします。担当者よりご連絡いたします。`;
+
+function getPriceListSetting() {
+  return (state.settings || []).find(s => String(s.key || '') === 'priceList') || {};
+}
+
+function renderPriceListPreview() {
+  const el = $('price-list-preview');
+  if (!el) return;
+  const p = getPriceListSetting();
+  if (!p.value) {
+    el.innerHTML = '<p class="empty">未設定です（編集ボタンから登録してください）</p>';
+    return;
+  }
+  if (String(p.enabled || '').toLowerCase() === 'false') {
+    el.innerHTML = '<p class="empty">現在、登録ページへの表示はOFFです</p>';
+    return;
+  }
+  el.innerHTML = `
+    <div class="card cyan">
+      <p class="card-title">登録ページに表示中の価格表</p>
+      <p class="card-memo" style="margin-top:10px; white-space:pre-wrap;">${escapeHtml(p.value)}</p>
+    </div>
+  `;
+}
+
+function openPriceListModal() {
+  const p = getPriceListSetting();
+  const enabled = p.value ? (String(p.enabled || '').toLowerCase() !== 'false') : true;
+  const value = p.value || PRICE_LIST_DEFAULT_TEXT;
+  const body = `
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:8px; font-size:14px;">
+        <input type="checkbox" id="price-list-enabled" ${enabled ? 'checked' : ''} style="width:auto;" />
+        登録ページに表示する
+      </label>
+    </div>
+    <div class="field">
+      <label class="field-label">価格表の内容</label>
+      <p style="font-size:11px; color:var(--text-secondary); margin:0 0 6px;">
+        「# 見出し」で見出しを作成。「区分|価格|単位|参考上代」のように半角の｜（パイプ）で区切ると表になります（不要な項目は空欄でOK）。｜を含まない行はそのまま注意書きとして表示されます。
+      </p>
+      <textarea id="price-list-value" rows="20">${escapeHtml(value)}</textarea>
+    </div>
+    <button class="btn-primary cyan" id="save-price-list" style="margin-bottom:8px;">保存する</button>
+  `;
+  openModal('卸販売価格表の編集', body);
+  $('save-price-list').addEventListener('click', savePriceListFromModal);
+}
+
+async function savePriceListFromModal() {
+  const payload = {
+    enabled: $('price-list-enabled').checked,
+    value: $('price-list-value').value
+  };
+  try {
+    await gasRequest('savePriceList', payload);
+    closeModal();
+    toast('価格表を保存しました');
+    await syncFromServer();
+    renderAll();
+  } catch (e) {
+    alert('保存できませんでした: ' + (e.message || e));
+  }
+}
+
+// ============================================================
+// イベント
+// ============================================================
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+    $('tab-' + t.dataset.tab).style.display = 'block';
+    state.currentTab = t.dataset.tab;
+    localStorage.setItem(STORAGE_KEYS.CURRENT_TAB, t.dataset.tab);
+  });
+});
+
+function restoreTab() {
+  let tab = state.currentTab;
+  if (!$('tab-' + tab)) {
+    tab = 'orders';
+    state.currentTab = tab;
+    localStorage.setItem(STORAGE_KEYS.CURRENT_TAB, tab);
+  }
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+  const tabBtn = document.querySelector(`.tab[data-tab="${tab}"]`);
+  if (tabBtn) tabBtn.classList.add('active');
+  const tabPanel = $('tab-' + tab);
+  if (tabPanel) tabPanel.style.display = 'block';
+}
+
+async function openWeeklyScheduleModal() {
+  let sched = { enabled: false, weekday: 1, hour: 9, subject: '', body: '', targetShopIds: [], sendToAll: true };
+  try {
+    const r = await gasRequest('getWeeklyEmailSchedule', {});
+    if (r) sched = { enabled: !!r.enabled, weekday: r.weekday, hour: r.hour, subject: r.subject || '', body: r.body || '', targetShopIds: (r.targetShopIds || []).map(String), sendToAll: r.sendToAll !== false };
+  } catch (e) {}
+  const mailable = state.shops.filter(function(s){ return s.email && s.email.indexOf('@') !== -1 && String(s.status || 'active') === 'active'; });
+  const checkedSet = new Set(sched.targetShopIds);
+  const shopRows = mailable.map(function(s){
+    const isChecked = sched.sendToAll || checkedSet.has(String(s.id));
+    return `
+      <label style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border-soft); cursor:pointer;">
+        <input type="checkbox" class="wsch-check" data-id="${escapeHtml(s.id)}" ${isChecked ? 'checked' : ''}
+          style="width:20px; height:20px; flex-shrink:0; box-shadow:none; accent-color:var(--accent-cyan);" />
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:700; font-size:15px;">${escapeHtml(s.name)}</div>
+          <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">${escapeHtml(s.email)}</div>
+        </div>
+      </label>`;
+  }).join('');
+  const days = ['日曜','月曜','火曜','水曜','木曜','金曜','土曜'];
+  const dayOpts = days.map((d,i)=>`<option value="${i}" ${sched.weekday===i?'selected':''}>${d}</option>`).join('');
+  let hourOpts = '';
+  for (let h=0; h<24; h++) hourOpts += `<option value="${h}" ${sched.hour===h?'selected':''}>${('0'+h).slice(-2)}:00</option>`;
+  const body = `
+    <p style="font-size:13px; color:var(--text-secondary); margin:0 0 14px;">毎週、指定した曜日・時刻に、選択したお客さんへ注文ページの案内メールを自動送信します。件名・本文・送り先を確認して保存してください。</p>
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600;">
+        <input type="checkbox" id="wsch-enabled" ${sched.enabled?'checked':''} style="width:auto; box-shadow:none;" />
+        自動送信をオンにする
+      </label>
+    </div>
+    <div class="field">
+      <label class="field-label">曜日</label>
+      <select id="wsch-weekday">${dayOpts}</select>
+    </div>
+    <div class="field">
+      <label class="field-label">時刻</label>
+      <select id="wsch-hour">${hourOpts}</select>
+    </div>
+    <div class="field">
+      <label class="field-label field-required">件名</label>
+      <input type="text" id="wsch-subject" value="${escapeHtml(sched.subject)}" />
+    </div>
+    <div class="field">
+      <label class="field-label field-required">本文</label>
+      <p style="font-size:11px; color:var(--text-secondary); margin:0 0 6px;">※宛名（店舗名・担当者様）は自動で付きます。本文中の {{ORDER_URL}} は各顧客の注文URLに自動置換されます。</p>
+      <textarea id="wsch-body" rows="12">${escapeHtml(sched.body)}</textarea>
+    </div>
+    <div class="field">
+      <label class="field-label">送り先</label>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button class="btn-small cyan" id="wsch-select-all">全選択</button>
+        <button class="btn-small" id="wsch-deselect-all">全解除</button>
+      </div>
+      <div style="max-height:220px; overflow-y:auto;">${shopRows || '<p style="font-size:13px;color:var(--text-secondary);">送信可能な顧客がいません（メールアドレス・契約中をご確認ください）</p>'}</div>
+    </div>
+    <p id="wsch-count" style="font-size:13px; color:var(--text-secondary); margin:0 0 12px; font-weight:600;"></p>
+    <button class="btn-primary green" id="wsch-save" style="margin-bottom:8px;">保存する</button>
+  `;
+  openModal('週次メール 自動送信設定', body);
+  function updateWschCount(){ const n=document.querySelectorAll('.wsch-check:checked').length; const el=$('wsch-count'); if(el) el.textContent = n + '件に自動送信します'; }
+  const selAll=$('wsch-select-all'); if(selAll) selAll.addEventListener('click', function(){ document.querySelectorAll('.wsch-check').forEach(function(c){ c.checked=true; }); updateWschCount(); });
+  const deAll=$('wsch-deselect-all'); if(deAll) deAll.addEventListener('click', function(){ document.querySelectorAll('.wsch-check').forEach(function(c){ c.checked=false; }); updateWschCount(); });
+  document.querySelectorAll('.wsch-check').forEach(function(c){ c.addEventListener('change', updateWschCount); });
+  updateWschCount();
+  $('wsch-save').addEventListener('click', saveWeeklyScheduleFromModal);
+}
+
+async function saveWeeklyScheduleFromModal() {
+  const allChecks = Array.from(document.querySelectorAll('.wsch-check'));
+  const checked = allChecks.filter(function(c){ return c.checked; }).map(function(c){ return c.dataset.id; });
+  const sendToAll = allChecks.length > 0 && checked.length === allChecks.length;
+  const enabled = $('wsch-enabled').checked;
+  if (enabled && checked.length === 0) { alert('送り先を1件以上選択してください'); return; }
+  const payload = {
+    enabled: enabled,
+    weekday: parseInt($('wsch-weekday').value, 10),
+    hour: parseInt($('wsch-hour').value, 10),
+    subject: $('wsch-subject').value.trim(),
+    bodyTemplate: $('wsch-body').value,
+    sendToAll: sendToAll,
+    targetShopIds: checked
+  };
+  try {
+    await gasRequest('setWeeklyEmailSchedule', payload);
+    closeModal();
+    toast(payload.enabled ? '毎週の自動送信を設定しました' : '自動送信をオフにしました');
+  } catch (e) {
+    alert('保存できませんでした: ' + (e.message || e));
+  }
+}
+
+$('add-order-btn').addEventListener('click', () => openOrderModal());
+$('add-reception-btn').addEventListener('click', openReceptionModal);
+$('add-shop-btn').addEventListener('click', () => openShopModal());
+$('add-item-btn').addEventListener('click', () => openItemModal());
+$('send-weekly-mails-btn').addEventListener('click', sendWeeklyOrderEmailsFromButton);
+$('weekly-schedule-btn').addEventListener('click', openWeeklyScheduleModal);
+$('send-custom-mail-btn').addEventListener('click', openCustomEmailModal);
+$('copy-signup-url-btn').addEventListener('click', async () => {
+  let url;
+  try {
+    url = location.origin + location.pathname.replace(/[^/]*$/, '') + 'signup.html';
+  } catch (e) {
+    alert('新規登録URLを作成できませんでした: ' + e.message);
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    toast('新規登録URLをコピーしました');
+  } catch (e) {
+    alert(url);
+  }
+});
+$('edit-notice-btn').addEventListener('click', openNoticeModal);
+$('edit-price-list-btn').addEventListener('click', openPriceListModal);
+
+// 焙煎計画イベント
+$('planning-from').addEventListener('change', renderPlanning);
+$('planning-to').addEventListener('change', renderPlanning);
+$('planning-clear-filter').addEventListener('click', () => {
+  $('planning-from').value = '';
+  $('planning-to').value = '';
+  renderPlanning();
+});
+$('planning-select-all').addEventListener('click', () => {
+  getPlanningTargetOrders().forEach(o => planningSelected.add(o.id));
+  renderPlanning();
+});
+$('planning-deselect-all').addEventListener('click', () => {
+  planningSelected.clear();
+  renderPlanning();
+});
+$('planning-print').addEventListener('click', printPlanningResult);
+
+$('config-toggle').addEventListener('click', () => {
+  $('config-panel').classList.toggle('open');
+});
+
+$('save-config').addEventListener('click', async () => {
+  const url = $('gas-url').value.trim();
+  if (!url) {
+    alert('URLを入力してください');
+    return;
+  }
+  if (!confirm('この設定で接続テストを行います。よろしいですか？')) return;
+  state.gasUrl = url;
+  localStorage.setItem(STORAGE_KEYS.GAS_URL, url);
+  toast('接続テスト中…');
+  const ok = await syncFromServer();
+  if (ok) {
+    toast('接続成功！データを同期しました');
+    renderAll();
+  } else {
+    toast('接続失敗。URLを確認してください');
+  }
+});
+
+// ============================================================
+// 初期化
+// ============================================================
+async function init() {
+  loadCache();
+  restoreTab();
+  if (USE_GOOGLE_SCRIPT) {
+    // Apps Scriptから配信されている場合：設定不要
+    setOnline(false);
+    renderAll();
+    await syncFromServer();
+    renderAll();
+    setInterval(syncFromServer, 30000);
+  } else if (state.gasUrl) {
+    // ローカルから開いた場合：保存済みURLで接続
+    $('gas-url').value = state.gasUrl;
+    setOnline(false);
+    renderAll();
+    await syncFromServer();
+    renderAll();
+    setInterval(syncFromServer, 30000);
+  } else {
+    // ローカルから開いてURL未設定の場合：設定パネル表示
+    setOnline(false);
+    $('config-panel').style.display = 'block';
+    $('config-panel').classList.add('open');
+    renderAll();
+  }
+}
+
+init();
 </script>
 </body>
 </html>
