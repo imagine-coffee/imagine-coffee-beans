@@ -842,6 +842,27 @@
     margin-top: 18px;
   }
   @media print {
+    body.print-history .header,
+    body.print-history .tabs,
+    body.print-history .toast,
+    body.print-history .modal-overlay {
+      display: none !important;
+    }
+    body.print-history .app {
+      padding: 0;
+    }
+    body.print-history .tab-panel {
+      display: none !important;
+    }
+    body.print-history #tab-history {
+      display: block !important;
+    }
+    body.print-history #history-print,
+    body.print-history #history-csv-download,
+    body.print-history .history-sort-btn,
+    body.print-history .card-actions {
+      display: none !important;
+    }
     body.print-planning {
       background: #fff;
     }
@@ -1016,13 +1037,13 @@
 
   <div class="tabs">
     <button class="tab active" data-tab="orders">注文</button>
+    <button class="tab" data-tab="history">受取完了</button>
+    <button class="tab" data-tab="invoiced">納品書完了</button>
+    <button class="tab" data-tab="canceled">削除・取消</button>
     <button class="tab" data-tab="planning">焙煎計画</button>
     <button class="tab" data-tab="shops">顧客</button>
     <button class="tab" data-tab="items">商品マスタ</button>
     <button class="tab" data-tab="notice">お知らせ</button>
-    <button class="tab" data-tab="history">受取完了</button>
-    <button class="tab" data-tab="invoiced">納品書完了</button>
-    <button class="tab" data-tab="canceled">削除・取消</button>
   </div>
 
   <div id="tab-orders" class="tab-panel">
@@ -1082,6 +1103,8 @@
       <span style="font-size:12px; color: var(--text-secondary); font-weight:600;">並び順</span>
       <button class="btn-small history-sort-btn" data-sort="completed">受け取り日順</button>
       <button class="btn-small history-sort-btn" data-sort="order">注文日順</button>
+      <button class="btn-small" id="history-print">注文一覧印刷</button>
+      <button class="btn-small cyan" id="history-csv-download">CSV納品書データ発行</button>
     </div>
     <div id="history-list"></div>
   </div>
@@ -2018,6 +2041,111 @@ function printDeliveryNote(orderId) {
   document.body.classList.add('print-delivery');
   window.print();
 }
+
+// ============================================================
+// 受取完了タブ：注文一覧印刷 / CSV納品書データ発行
+// ============================================================
+document.getElementById('history-print').addEventListener('click', () => {
+  document.body.classList.add('print-history');
+  window.print();
+  setTimeout(() => document.body.classList.remove('print-history'), 1000);
+});
+
+document.getElementById('history-csv-download').addEventListener('click', () => {
+  const done = state.orders.filter(o => o.status === 'done');
+  if (done.length === 0) {
+    alert('受取完了の注文がありません。');
+    return;
+  }
+  const shopMap = {};
+  (state.shops || []).forEach(s => {
+    if (s.id) shopMap[s.id] = s;
+    if (s.shopId) shopMap[s.shopId] = s;
+  });
+
+  const COLS = [
+    'csv_type(変更不可)','行形式','取引先名称','件名','納品日','納品書番号',
+    'メモ','タグ','小計','消費税','源泉徴収税','合計金額','取引先敬称',
+    '取引先郵便番号','取引先都道府県','取引先住所1','取引先住所2',
+    '取引先部署','取引先担当者役職','取引先担当者氏名','自社担当者氏名',
+    '備考','納品ステータス','メール送信ステータス','郵送ステータス',
+    'ダウンロードステータス','品名','品目コード','単価','数量','単位','詳細','金額','源泉徴収','品目消費税率'
+  ];
+  const csvEsc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const emptyRow = (len) => Array(len).fill('');
+
+  const rows = [COLS.map(csvEsc).join(',')];
+
+  done.forEach(order => {
+    const shop = shopMap[order.shopId] || (state.shops || []).find(s => s.name === order.shop) || {};
+    const items = order.items || [];
+
+    let totalAmount = 0;
+    items.forEach(it => { totalAmount += Number(it.amount) || 0; });
+    const taxExcl = Math.round(totalAmount / 1.08);
+    const tax = totalAmount - taxExcl;
+
+    const hRow = emptyRow(35);
+    hRow[0]  = '40201';
+    hRow[1]  = '納品書';
+    hRow[2]  = shop.name || order.shop || '';
+    hRow[3]  = '';
+    hRow[4]  = order.delivery || order.completedAt || '';
+    hRow[5]  = '';
+    hRow[6]  = order.memo || '';
+    hRow[7]  = '';
+    hRow[8]  = totalAmount > 0 ? taxExcl : '';
+    hRow[9]  = totalAmount > 0 ? tax : '';
+    hRow[10] = '';
+    hRow[11] = totalAmount > 0 ? totalAmount : '';
+    hRow[12] = '御中';
+    hRow[13] = shop.zipcode || '';
+    hRow[14] = '';
+    hRow[15] = shop.address || '';
+    hRow[16] = '';
+    hRow[17] = '';
+    hRow[18] = '';
+    hRow[19] = shop.person || '';
+    hRow[20] = '';
+    hRow[21] = 'いつもご注文ありがとうございます。毎月月末締め、翌月初めに請求書をEmailにて送付いたします。よろしくお願いします。';
+    rows.push(hRow.map(csvEsc).join(','));
+
+    items.forEach(it => {
+      const iRow = emptyRow(35);
+      iRow[0]  = '40201';
+      iRow[1]  = '品目';
+      const name = [
+        it.name,
+        it.customBlendName || '',
+        it.variant || '',
+        (it.type === 'bean' && it.grind === 'ground') ? '（挽き豆）' : ''
+      ].filter(Boolean).join('　');
+      const qty = Number(it.quantity) || 1;
+      const amt = Number(it.amount) || 0;
+      const unitPrice = qty > 0 ? Math.round(amt / qty) : 0;
+      iRow[26] = name;
+      iRow[27] = '';
+      iRow[28] = unitPrice;
+      iRow[29] = qty;
+      iRow[30] = '個';
+      iRow[31] = '';
+      iRow[32] = amt;
+      iRow[33] = '含む';
+      iRow[34] = '軽8%';
+      rows.push(iRow.map(csvEsc).join(','));
+    });
+  });
+
+  const bom = '﻿';
+  const blob = new Blob([bom + rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  a.href = url;
+  a.download = 'mfw_納品書_' + today + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+});
 
 // ============================================================
 // モーダル
