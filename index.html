@@ -1103,8 +1103,10 @@
       <span style="font-size:12px; color: var(--text-secondary); font-weight:600;">並び順</span>
       <button class="btn-small history-sort-btn" data-sort="completed">受け取り日順</button>
       <button class="btn-small history-sort-btn" data-sort="order">注文日順</button>
+      <button class="btn-small" id="history-select-all">全選択</button>
+      <button class="btn-small" id="history-deselect-all">全解除</button>
       <button class="btn-small" id="history-print">注文一覧印刷</button>
-      <button class="btn-small cyan" id="history-csv-download">CSV納品書データ発行</button>
+      <button class="btn-small cyan" id="history-csv-download" disabled style="opacity:0.5;">CSV納品書データ発行</button>
     </div>
     <div id="history-list"></div>
   </div>
@@ -1555,20 +1557,28 @@ function renderItems() {
 
 // 履歴の並び順（'completed'=受け取り日順 / 'order'=注文日順）。初期は受け取り日順
 let historySortMode = 'completed';
+let selectedHistoryIds = new Set();
 
 function setHistorySort(mode) {
   historySortMode = mode === 'order' ? 'order' : 'completed';
   renderHistory();
 }
 
+function updateCsvButtonState() {
+  const btn = $('history-csv-download');
+  if (!btn) return;
+  const count = selectedHistoryIds.size;
+  btn.textContent = count > 0 ? `CSV納品書データ発行（${count}件）` : 'CSV納品書データ発行';
+  btn.disabled = count === 0;
+  btn.style.opacity = count === 0 ? '0.5' : '1';
+}
+
 function renderHistory() {
-  // 並び替えボタンの見た目を現在のモードに合わせる
   document.querySelectorAll('.history-sort-btn').forEach(b => {
     b.classList.toggle('cyan', b.dataset.sort === historySortMode);
     b.onclick = () => setHistorySort(b.dataset.sort);
   });
 
-  // 注文日順は createdAt（無ければ date）、受け取り日順は completedAt で新しい順に並べる
   const orderDateKey = o => o.createdAt || o.date || '';
   const done = state.orders.filter(o => o.status === 'done')
     .sort((a, b) => historySortMode === 'order'
@@ -1577,13 +1587,19 @@ function renderHistory() {
   const list = $('history-list');
   if (done.length === 0) {
     list.innerHTML = '<p class="empty">受け渡し済みの履歴はありません</p>';
+    updateCsvButtonState();
     return;
   }
-  // 描画が重くならないよう直近50件のみ表示（全データはスプレッドシートに残っている）
   const shown = done.slice(0, 50);
-  list.innerHTML = shown.map(o => `
-    <div class="card">
-      <div class="card-head">
+  list.innerHTML = shown.map(o => {
+    const sel = selectedHistoryIds.has(o.id);
+    const csvCount = Number(o.csvIssuedCount) || 0;
+    return `
+    <div class="card${sel ? ' cyan' : ''}" data-id="${o.id}" style="cursor:pointer; position:relative;">
+      <label style="position:absolute; top:12px; right:12px; cursor:pointer;" onclick="event.stopPropagation()">
+        <input type="checkbox" class="h-select" data-id="${o.id}" ${sel ? 'checked' : ''} style="width:18px;height:18px;cursor:pointer;" />
+      </label>
+      <div class="card-head" style="padding-right:36px;">
         <p class="card-title" style="font-size:16px;">${escapeHtml(o.shop)}</p>
         <span style="font-size:12px; color: var(--text-tertiary);">${historySortMode === 'order'
           ? '注文 ' + String(orderDateKey(o)).slice(0,10)
@@ -1593,6 +1609,7 @@ function renderHistory() {
       ${orderTotalAmount(o) > 0 ? `<p style="font-size:15px; font-weight:700; margin:6px 0;">合計 ${formatYen(orderTotalAmount(o))}</p>` : ''}
       <p class="card-meta"><span class="meta-label">場所</span>${escapeHtml(o.place || '')}</p>
       ${o.completedBy ? `<p class="card-meta"><span class="meta-label">受け渡し担当</span>${escapeHtml(o.completedBy)}</p>` : ''}
+      ${csvCount > 0 ? `<p class="card-meta"><span class="meta-label" style="background:var(--accent-cyan);color:white;border-color:var(--accent-cyan);">CSV発行</span>${csvCount}回</p>` : ''}
       <div class="card-actions">
         <button class="btn-small yellow h-restore" data-id="${o.id}">注文へ戻す</button>
         <button class="btn-small cyan h-delivery" data-id="${o.id}">納品書発行</button>
@@ -1600,14 +1617,33 @@ function renderHistory() {
         <button class="btn-small yellow h-duplicate" data-id="${o.id}">複製</button>
         <button class="btn-small danger h-del" data-id="${o.id}">削除・取消</button>
       </div>
-    </div>
-  `).join('') + (done.length > 50 ? `<p class="empty">直近50件を表示しています（全${done.length}件の記録はスプレッドシートで確認できます）</p>` : '');
+    </div>`;
+  }).join('') + (done.length > 50 ? `<p class="empty">直近50件を表示しています（全${done.length}件の記録はスプレッドシートで確認できます）</p>` : '');
+
+  document.querySelectorAll('.h-select').forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) selectedHistoryIds.add(cb.dataset.id);
+      else selectedHistoryIds.delete(cb.dataset.id);
+      renderHistory();
+    });
+  });
+  document.querySelectorAll('#history-list .card').forEach(card => {
+    card.addEventListener('click', e => {
+      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('label')) return;
+      const id = card.dataset.id;
+      if (selectedHistoryIds.has(id)) selectedHistoryIds.delete(id);
+      else selectedHistoryIds.add(id);
+      renderHistory();
+    });
+  });
 
   document.querySelectorAll('.h-restore').forEach(b => b.addEventListener('click', () => restoreOrder(b.dataset.id)));
   document.querySelectorAll('.h-delivery').forEach(b => b.addEventListener('click', () => printDeliveryNote(b.dataset.id)));
   document.querySelectorAll('.h-invoiced').forEach(b => b.addEventListener('click', () => markInvoiced(b.dataset.id)));
   document.querySelectorAll('.h-duplicate').forEach(b => b.addEventListener('click', () => duplicateOrder(b.dataset.id)));
   document.querySelectorAll('.h-del').forEach(b => b.addEventListener('click', () => cancelOrder(b.dataset.id)));
+
+  updateCsvButtonState();
 }
 
 function renderCanceled() {
@@ -2051,10 +2087,20 @@ document.getElementById('history-print').addEventListener('click', () => {
   setTimeout(() => document.body.classList.remove('print-history'), 1000);
 });
 
-document.getElementById('history-csv-download').addEventListener('click', () => {
-  const done = state.orders.filter(o => o.status === 'done');
+document.getElementById('history-select-all').addEventListener('click', () => {
+  state.orders.filter(o => o.status === 'done').slice(0, 50).forEach(o => selectedHistoryIds.add(o.id));
+  renderHistory();
+});
+
+document.getElementById('history-deselect-all').addEventListener('click', () => {
+  selectedHistoryIds.clear();
+  renderHistory();
+});
+
+document.getElementById('history-csv-download').addEventListener('click', async () => {
+  const done = state.orders.filter(o => selectedHistoryIds.has(o.id));
   if (done.length === 0) {
-    alert('受取完了の注文がありません。');
+    alert('CSVに含める注文を選択してください。');
     return;
   }
   const shopMap = {};
@@ -2145,6 +2191,19 @@ document.getElementById('history-csv-download').addEventListener('click', () => 
   a.download = 'mfw_納品書_' + today + '.csv';
   a.click();
   URL.revokeObjectURL(url);
+
+  // 発行回数をインクリメントして保存
+  for (const order of done) {
+    const idx = state.orders.findIndex(o => o.id === order.id);
+    if (idx !== -1) {
+      state.orders[idx].csvIssuedCount = (Number(state.orders[idx].csvIssuedCount) || 0) + 1;
+      gasRequest('updateOrder', state.orders[idx]).catch(() => {});
+    }
+  }
+  selectedHistoryIds.clear();
+  saveCache();
+  renderHistory();
+  toast('CSVを発行しました（' + done.length + '件）');
 });
 
 // ============================================================
