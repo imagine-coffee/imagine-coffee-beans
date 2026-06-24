@@ -111,10 +111,11 @@
 
   function validateKey(k) {
     root.innerHTML = '<div class="loading">確認中...</div>';
-    fetch(GAS_URL, {
+    // text/plain はCORSプリフライト不要。actionはURLクエリで渡し、bodyはJSONをtext/plainで送る。
+    fetch(GAS_URL + '?action=validateKey', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'validateKey', __adminKey: k })
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ __adminKey: k })
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
