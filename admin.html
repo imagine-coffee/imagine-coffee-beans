@@ -109,25 +109,25 @@
     input.focus();
   }
 
+  // 正しいキーのSHA-256ハッシュ（キー本体はここに書いていない）
+  var CORRECT_KEY_HASH = '1528d4661d4ddd5f1109e1499972e569e746674d31c707fb95a6c1b8ef48dd13';
+
   function validateKey(k) {
     root.innerHTML = '<div class="loading">確認中...</div>';
-    // text/plain はCORSプリフライト不要。actionはURLクエリで渡し、bodyはJSONをtext/plainで送る。
-    fetch(GAS_URL + '?action=validateKey', {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ __adminKey: k })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (data && data.ok) {
-        goToAdmin(k);
-      } else {
-        showKeyForm('管理キーが違います。もう一度入力してください。');
-      }
-    })
-    .catch(function() {
-      showKeyForm('接続に失敗しました。電波を確認してもう一度お試しください。');
-    });
+    crypto.subtle.digest('SHA-256', new TextEncoder().encode(k))
+      .then(function(buf) {
+        var hash = Array.from(new Uint8Array(buf)).map(function(b) {
+          return b.toString(16).padStart(2, '0');
+        }).join('');
+        if (hash === CORRECT_KEY_HASH) {
+          goToAdmin(k);
+        } else {
+          showKeyForm('管理キーが違います。もう一度入力してください。');
+        }
+      })
+      .catch(function() {
+        showKeyForm('確認に失敗しました。もう一度お試しください。');
+      });
   }
 
   if (key) {
