@@ -2704,6 +2704,7 @@ function openShopDetail(shopId) {
     ${shop.person ? `<p class="card-meta"><span class="meta-label">担当者</span>${escapeHtml(shop.person)}</p>` : ''}
     ${shop.email ? `<p class="card-meta"><span class="meta-label">メール</span>${escapeHtml(shop.email)}</p>` : ''}
     ${shop.tel ? `<p class="card-meta"><span class="meta-label">電話番号</span>${escapeHtml(shop.tel)}</p>` : ''}
+    ${shop.zipcode ? `<p class="card-meta"><span class="meta-label">郵便番号</span>${escapeHtml(shop.zipcode)}</p>` : ''}
     ${shop.address ? `<p class="card-meta"><span class="meta-label">住所</span>${escapeHtml(shop.address)}</p>` : ''}
     ${shop.start ? `<p class="card-meta"><span class="meta-label">契約開始日</span>${escapeHtml(shop.start)}</p>` : ''}
     ${shop.freq ? `<p class="card-meta"><span class="meta-label">納品頻度</span>${escapeHtml(shop.freq)}</p>` : ''}
@@ -2753,6 +2754,7 @@ function openShopModal(shopId) {
 
   const body = `
     <div class="field"><label class="field-label field-required">店舗名</label><input type="text" id="s-name" value="${escapeHtml(init.name || '')}" /></div>
+    <div class="field"><label class="field-label">郵便番号</label><input type="text" id="s-zipcode" placeholder="例：690-0006" value="${escapeHtml(init.zipcode || '')}" /></div>
     <div class="field"><label class="field-label">住所</label><input type="text" id="s-address" value="${escapeHtml(init.address || '')}" /></div>
     <div class="field"><label class="field-label">電話番号</label><input type="tel" id="s-tel" value="${escapeHtml(init.tel || '')}" /></div>
     <div class="field"><label class="field-label">担当者</label><input type="text" id="s-person" value="${escapeHtml(init.person || '')}" /></div>
@@ -2788,12 +2790,12 @@ function openShopModal(shopId) {
   `;
   openModal(editingShop ? '顧客を編集' : '新しい顧客', body);
 
-  ['s-name','s-address','s-tel','s-person','s-email','s-start','s-freq','s-place','s-default-payment-method','s-url','s-memo','s-internal-memo','s-status'].forEach(id => {
+  ['s-name','s-zipcode','s-address','s-tel','s-person','s-email','s-start','s-freq','s-place','s-default-payment-method','s-url','s-memo','s-internal-memo','s-status'].forEach(id => {
     const el = $(id);
     if (el && !editingShop) {
       const saveShopDraft = () => {
         const d = {};
-        ['s-name','s-address','s-tel','s-person','s-email','s-start','s-freq','s-place','s-default-payment-method','s-url','s-memo','s-internal-memo','s-status'].forEach(k => {
+        ['s-name','s-zipcode','s-address','s-tel','s-person','s-email','s-start','s-freq','s-place','s-default-payment-method','s-url','s-memo','s-internal-memo','s-status'].forEach(k => {
           const e = $(k); if (e) d[k.replace('s-', '')] = e.value;
         });
         localStorage.setItem(STORAGE_KEYS.DRAFT_SHOP, JSON.stringify(d));
@@ -2813,6 +2815,7 @@ async function saveShop(editingShop) {
   const shop = {
     id: editingShop ? editingShop.id : uid(),
     name,
+    zipcode: $('s-zipcode').value,
     address: $('s-address').value,
     tel: $('s-tel').value,
     person: $('s-person').value,
