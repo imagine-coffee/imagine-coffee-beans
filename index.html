@@ -1151,7 +1151,7 @@ const ADMIN_ACCESS_KEY = INJECTED_ADMIN_KEY.indexOf('\x3c?') === -1
 
 // 正しい管理キーのSHA-256ハッシュ（admin.htmlと同じ値。キー本体はここに書かない）
 // GitHub単独表示時は、ここで照合して間違ったキーでは画面に入れないようにする。
-const CORRECT_KEY_HASH = '1528d4661d4ddd5f1109e1499972e569e746674d31c707fb95a6c1b8ef48dd13';
+const CORRECT_KEY_HASH = '104e70efd0c9365e5f6ab8ca41dd87a474142538fd769cc88a6d58cd1476605f';
 
 // SHA-256（純JS実装）。crypto.subtle が使えない環境（file:// やhttp等の非HTTPS）でも
 // ハッシュ照合できるようにするためのフォールバック。
