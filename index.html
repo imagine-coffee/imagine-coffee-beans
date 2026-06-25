@@ -1149,6 +1149,21 @@ const ADMIN_ACCESS_KEY = INJECTED_ADMIN_KEY.indexOf('\x3c?') === -1
   ? INJECTED_ADMIN_KEY
   : (new URLSearchParams(location.search).get('key') || '');
 
+// 正しい管理キーのSHA-256ハッシュ（admin.htmlと同じ値。キー本体はここに書かない）
+// GitHub単独表示時は、ここで照合して間違ったキーでは画面に入れないようにする。
+const CORRECT_KEY_HASH = '1528d4661d4ddd5f1109e1499972e569e746674d31c707fb95a6c1b8ef48dd13';
+async function isValidAdminKey_(k) {
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(k));
+    const hash = Array.from(new Uint8Array(buf))
+      .map(function (b) { return b.toString(16).padStart(2, '0'); })
+      .join('');
+    return hash === CORRECT_KEY_HASH;
+  } catch (e) {
+    return false;
+  }
+}
+
 const STORAGE_KEYS = {
   GAS_URL: 'imagine_gas_url',
   ORDERS: 'imagine_orders_cache',
@@ -3914,7 +3929,11 @@ $('save-config').addEventListener('click', async () => {
 // ルートURL（/）をそのまま「キーを入れて管理画面に入る入口」にする。
 // GAS配信時(USE_GOOGLE_SCRIPT)はキー注入済みなので表示されない。
 // ============================================================
-function showAdminKeyGate_() {
+function showAdminKeyGate_(errorMsg) {
+  if (document.getElementById('admin-key-gate')) {
+    if (errorMsg) document.getElementById('admin-key-msg').textContent = errorMsg;
+    return;
+  }
   var wrap = document.createElement('div');
   wrap.id = 'admin-key-gate';
   wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#FFFCF5;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;padding:20px;box-sizing:border-box;';
@@ -3927,6 +3946,7 @@ function showAdminKeyGate_() {
     '<button id="admin-key-go" style="padding:12px 28px;font-size:15px;font-weight:600;background:#4FB8C9;color:#fff;border:1.5px solid #1A1A18;border-radius:999px;cursor:pointer;">開く</button>' +
     '<div id="admin-key-msg" style="font-size:13px;color:#C0392B;min-height:18px;"></div>';
   document.body.appendChild(wrap);
+  if (errorMsg) wrap.querySelector('#admin-key-msg').textContent = errorMsg;
   var input = wrap.querySelector('#admin-key-input');
   function go() {
     var v = (input.value || '').trim();
@@ -3942,10 +3962,17 @@ function showAdminKeyGate_() {
 // 初期化
 // ============================================================
 async function init() {
-  // GitHubでルートを直接開き、まだ鍵が無い場合はキー入力画面を表示して終了
-  if (!ADMIN_ACCESS_KEY && !USE_GOOGLE_SCRIPT) {
-    showAdminKeyGate_();
-    return;
+  // GitHub単独表示時：キーが「無い」または「間違っている」場合は入口で止める。
+  // （GAS配信時は doGet でサーバー側がキー検証済みのため、この照合は行わない）
+  if (!USE_GOOGLE_SCRIPT) {
+    if (!ADMIN_ACCESS_KEY) {
+      showAdminKeyGate_();
+      return;
+    }
+    if (!(await isValidAdminKey_(ADMIN_ACCESS_KEY))) {
+      showAdminKeyGate_('管理キーが違います。もう一度入力してください。');
+      return;
+    }
   }
   loadCache();
   restoreTab();
